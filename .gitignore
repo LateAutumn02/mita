@@ -25,6 +25,7 @@ e2e-*.png
 
 # Local/generated artifacts
 artifacts/
+maita/
 
 # Desktop build output
 desktop/dist/

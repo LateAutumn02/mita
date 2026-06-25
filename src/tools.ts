@@ -7,7 +7,9 @@ import { FileEditTool } from './tools/FileEditTool/FileEditTool.js'
 import { FileReadTool } from './tools/FileReadTool/FileReadTool.js'
 import { FileWriteTool } from './tools/FileWriteTool/FileWriteTool.js'
 import { GlobTool } from './tools/GlobTool/GlobTool.js'
+import { LiteratureExcelTool } from './tools/LiteratureExcelTool/LiteratureExcelTool.js'
 import { NotebookEditTool } from './tools/NotebookEditTool/NotebookEditTool.js'
+import { PDFExtractTool } from './tools/PDFExtractTool/PDFExtractTool.js'
 import { WebFetchTool } from './tools/WebFetchTool/WebFetchTool.js'
 import { TaskStopTool } from './tools/TaskStopTool/TaskStopTool.js'
 import { BriefTool } from './tools/BriefTool/BriefTool.js'
@@ -204,7 +206,9 @@ export function getAllBaseTools(): Tools {
     FileReadTool,
     FileEditTool,
     FileWriteTool,
+    LiteratureExcelTool,
     NotebookEditTool,
+    PDFExtractTool,
     WebFetchTool,
     TodoWriteTool,
     WebSearchTool,
