@@ -253,7 +253,7 @@ describe('release desktop workflow', () => {
     const buildJob = extractJob(workflow, 'build')
 
     expect(buildJob).toContain('Validate matrix release asset set')
-    for (const label of ['macOS-ARM64', 'macOS-x64', 'Linux-x64', 'Linux-ARM64', 'Windows-x64']) {
+    for (const label of ['macOS-ARM64', 'macOS-x64', 'Windows-x64']) {
       expect(buildJob).toContain(`${label})`)
     }
     expect(buildJob).toContain('Upload release artifacts for final publish')
@@ -280,8 +280,8 @@ describe('release desktop workflow', () => {
     expect(publishJob).toContain('artifacts/release-assets/**/*.dmg')
     expect(publishJob).toContain('artifacts/release-assets/**/*.zip')
     expect(publishJob).toContain('artifacts/release-assets/**/*.exe')
-    expect(publishJob).toContain('artifacts/release-assets/**/*.AppImage')
-    expect(publishJob).toContain('artifacts/release-assets/**/*.deb')
+    expect(publishJob).not.toContain('artifacts/release-assets/**/*.AppImage')
+    expect(publishJob).not.toContain('artifacts/release-assets/**/*.deb')
     expect(publishJob).toContain('artifacts/release-assets/**/*.blockmap')
     expect(publishJob).toContain('artifacts/update-metadata-standard/*.yml')
     expect(publishJob).toContain('desktop/scripts/install-macos-unsigned.sh')
@@ -313,24 +313,16 @@ describe('release desktop workflow', () => {
       `Claude-Code-Haha-${version}-mac-x64.dmg.blockmap`,
       `Claude-Code-Haha-${version}-mac-x64.zip`,
       `Claude-Code-Haha-${version}-mac-x64.zip.blockmap`,
-      `Claude-Code-Haha-${version}-linux-x86_64.AppImage`,
-      `Claude-Code-Haha-${version}-linux-amd64.deb`,
-      `Claude-Code-Haha-${version}-linux-arm64.AppImage`,
-      `Claude-Code-Haha-${version}-linux-arm64.deb`,
       `Claude-Code-Haha-${version}-win-x64.exe`,
       `Claude-Code-Haha-${version}-win-x64.exe.blockmap`,
     ]
     const namespacedMetadata = [
       'latest-mac-macOS-ARM64.yml',
       'latest-mac-macOS-x64.yml',
-      'latest-linux-Linux-x64.yml',
-      'latest-linux-Linux-ARM64.yml',
       'latest-Windows-x64.yml',
     ]
     const standardMetadata = [
       'latest-mac.yml',
-      'latest-linux.yml',
-      'latest-linux-arm64.yml',
       'latest.yml',
     ]
     const flattenedNames = [
@@ -342,17 +334,15 @@ describe('release desktop workflow', () => {
     expect(new Set(flattenedNames).size).toBe(flattenedNames.length)
     expect(expectedReleaseAssets.filter((name) => name.endsWith('.dmg')).length).toBe(2)
     expect(expectedReleaseAssets.filter((name) => name.endsWith('.zip')).length).toBe(2)
-    expect(expectedReleaseAssets.filter((name) => name.endsWith('.AppImage')).length).toBe(2)
-    expect(expectedReleaseAssets.filter((name) => name.endsWith('.deb')).length).toBe(2)
+    expect(expectedReleaseAssets.filter((name) => name.endsWith('.AppImage')).length).toBe(0)
+    expect(expectedReleaseAssets.filter((name) => name.endsWith('.deb')).length).toBe(0)
     expect(expectedReleaseAssets.filter((name) => name.endsWith('.exe')).length).toBe(1)
-    expect(expectedReleaseAssets.some((name) => name.includes('-linux-') && name.endsWith('.blockmap'))).toBe(false)
-    for (const platform of ['mac', 'linux', 'win']) {
+    expect(expectedReleaseAssets.some((name) => name.includes('-linux-'))).toBe(false)
+    for (const platform of ['mac', 'win']) {
       expect(expectedReleaseAssets.some((name) => name.includes(`-${platform}-`))).toBe(true)
     }
     expect(standardMetadata).toEqual([
       'latest-mac.yml',
-      'latest-linux.yml',
-      'latest-linux-arm64.yml',
       'latest.yml',
     ])
   })
@@ -366,10 +356,6 @@ describe('release desktop workflow', () => {
       'Claude-Code-Haha-${APP_VERSION}-mac-arm64.zip',
       'Claude-Code-Haha-${APP_VERSION}-mac-x64.dmg',
       'Claude-Code-Haha-${APP_VERSION}-mac-x64.zip',
-      'Claude-Code-Haha-${APP_VERSION}-linux-x86_64.AppImage',
-      'Claude-Code-Haha-${APP_VERSION}-linux-amd64.deb',
-      'Claude-Code-Haha-${APP_VERSION}-linux-arm64.AppImage',
-      'Claude-Code-Haha-${APP_VERSION}-linux-arm64.deb',
       'Claude-Code-Haha-${APP_VERSION}-win-x64.exe',
     ]
 
@@ -377,13 +363,13 @@ describe('release desktop workflow', () => {
       expect(buildJob).toContain(file)
       expect(publishJob).toContain(file)
     }
-    for (const metadata of ['latest-mac.yml', 'latest-linux.yml', 'latest-linux-arm64.yml', 'latest.yml']) {
+    for (const metadata of ['latest-mac.yml', 'latest.yml']) {
       expect(publishJob).toContain(`artifacts/update-metadata-standard/$file`)
       expect(publishJob).toContain(metadata)
     }
     expect(buildJob).not.toContain('linux-x64.AppImage.blockmap')
     expect(buildJob).not.toContain('linux-arm64.AppImage.blockmap')
-    expect(buildJob).toContain('latest-linux-arm64.yml')
+    expect(buildJob).not.toContain('latest-linux-arm64.yml')
     expect(buildJob).toContain('Missing release assets for %s')
     expect(publishJob).toContain('Missing complete release assets')
     expect(publishJob).toContain('Missing standard update metadata')
