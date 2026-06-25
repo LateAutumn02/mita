@@ -1,12 +1,12 @@
 {
   "name": "claude-code-desktop",
   "private": true,
-  "version": "0.4.3",
+  "version": "0.1.0",
   "description": "Desktop coding agent workbench for Claude Code Haha.",
-  "homepage": "https://github.com/NanmiCoder/cc-haha",
+  "homepage": "https://github.com/LateAutumn02/mita",
   "author": {
-    "name": "NanmiCoder",
-    "email": "relakkes@gmail.com"
+    "name": "LateAutumn02",
+    "email": "2899809527@qq.com"
   },
   "type": "module",
   "main": "electron-dist/main.cjs",
@@ -65,13 +65,13 @@
       ],
       "icon": "src-tauri/icons",
       "category": "Development",
-      "maintainer": "NanmiCoder <relakkes@gmail.com>"
+      "maintainer": "LateAutumn02 <2899809527@qq.com>"
     },
     "publish": [
       {
         "provider": "github",
-        "owner": "NanmiCoder",
-        "repo": "cc-haha"
+        "owner": "LateAutumn02",
+        "repo": "mita"
       }
     ]
   },

@@ -95,10 +95,10 @@ describe('release desktop workflow', () => {
     }
 
     expect(desktopPackage.description).toBeTruthy()
-    expect(desktopPackage.homepage).toBe('https://github.com/NanmiCoder/cc-haha')
-    expect(desktopPackage.author?.name).toBe('NanmiCoder')
-    expect(desktopPackage.author?.email).toBe('relakkes@gmail.com')
-    expect(desktopPackage.build?.linux?.maintainer).toBe('NanmiCoder <relakkes@gmail.com>')
+    expect(desktopPackage.homepage).toBe('https://github.com/LateAutumn02/mita')
+    expect(desktopPackage.author?.name).toBe('LateAutumn02')
+    expect(desktopPackage.author?.email).toBe('2899809527@qq.com')
+    expect(desktopPackage.build?.linux?.maintainer).toBe('LateAutumn02 <2899809527@qq.com>')
   })
 
   test('release workflow requires macOS Gatekeeper launch approval for signed builds', () => {
@@ -227,7 +227,7 @@ describe('release desktop workflow', () => {
       /missing=\(\)[\s\S]*?# Windows signing is optional:/,
     )?.[0]
     const windowsOptionalBlock = signingJob?.match(
-      /win_missing=\(\)[\s\S]*?fi\n/,
+      /win_missing=\(\)[\s\S]*?fi\r?\n/,
     )?.[0]
     expect(macRequiredBlock).not.toContain('exit 1')
     expect(windowsOptionalBlock).toContain('::warning::')
@@ -402,8 +402,8 @@ describe('release desktop workflow', () => {
     expect(desktopPackage.build.publish).toEqual([
       {
         provider: 'github',
-        owner: 'NanmiCoder',
-        repo: 'cc-haha',
+        owner: 'LateAutumn02',
+        repo: 'mita',
       },
     ])
     expect(desktopPackage.build.mac?.publish).toBeUndefined()
