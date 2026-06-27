@@ -1,6 +1,6 @@
 ---
 name: literature-field-extraction
-description: Review and normalize a user-provided literature field specification, then extract structured fields from batches of PDF literature into JSON shards and merge them into Excel. Use when Codex needs to process multiple papers, guidelines, reports, or other literature PDFs according to a custom field requirement document, including incremental updates from an existing partial Excel.
+description: Review and normalize a user-provided literature field specification, then extract structured fields from batches of PDF literature into subagent JSON files and merge them into Excel. Use when Codex needs to process multiple papers, guidelines, reports, or other literature PDFs according to a custom field requirement document, including incremental updates from an existing partial Excel.
 ---
 
 # Literature Field Extraction
@@ -24,21 +24,27 @@ At the start of the task, tell the user that scanned/image-only PDFs cannot curr
    - Produce a concise extraction contract for subagents.
    - Preserve the user's intended fields, but make names, requiredness, allowed values, examples, and blank-value rules explicit.
    - Prefer one stable column name per field.
+   - If an existing Excel or official sample workbook is provided, use its populated/blank patterns as strong style guidance. A column that exists but is consistently blank in the sample should default to blank unless the user explicitly asks to fill it.
    - Identify source/provenance fields such as PDF filename, page, quote, DOI, citation, or evidence note when useful.
    - Ask the user only if the field specification is too ambiguous to extract reliably.
 
 3. Choose processing strategy.
-   - For 1-5 PDFs, the main agent may process directly.
+   - For 1-5 PDFs, the main agent may process directly only when the user wants a quick small-batch run.
    - For more than 5 PDFs, spawn `general-purpose` subagents.
-   - Use at most 10 subagents total.
-   - Give each subagent at most 3 PDFs. If there are more than 30 PDFs, process in waves.
+   - Use at most 5 subagents concurrently.
+   - Assign at most 3 PDFs to each extraction subagent.
+   - Process PDFs in waves when needed. Start no more than 5 subagents at once; after a wave finishes and all JSON files exist, start the next wave.
+   - This limited-shard policy balances speed and accuracy without creating too many parallel agents.
    - Read `references/workflow.md` before spawning subagents or doing incremental updates.
    - Before using task tools, first load each needed schema with `ToolSearch`, for example `select:TaskCreate`, `select:TaskUpdate`, `select:TaskGet`, `select:TaskOutput`, or `select:TaskStop`. Use the discovered schema exactly; task IDs use `taskId`, not `task_id`, and the task title field is `subject`, not `title`.
 
 4. Delegate extraction.
    - Create one shared JSON output directory before spawning subagents, for example `<output-dir>/literature-json/`.
-   - Each subagent receives only its shard, the normalized extraction contract, the target column list, and any existing rows needed for duplicate checks.
+   - Each subagent receives at most 3 PDFs, the normalized extraction contract, the target column list, and any existing rows needed for duplicate checks.
    - Each subagent reads PDFs with `PDFExtract` in bounded page ranges. For large PDFs, continue from `nextPage` until the fields are extracted or the document has been sufficiently reviewed.
+   - Each subagent may use `WebSearch` and `WebFetch` to verify or supplement fields that are not reliably available in the PDF, such as DOI, journal metadata, guideline source, publisher page, and impact factor. Web-derived fields must include source notes in `evidence` or `issues`.
+   - Do not proactively fill journal metrics such as impact factor or quartile when the provided sample/existing Excel leaves that column blank. Fill these metrics only when the field specification explicitly requires them and a reliable source verifies the value and metric year.
+   - Accuracy is more important than completeness. Do not fill DOI, impact factor, journal quartile, society/organization, recommendation text, sample size, numeric result, or citation details unless verified from the PDF or a reliable web source. If not verified, leave the field blank and record an issue.
    - If `PDFExtract` reports scanned/image-only pages, leave unverifiable fields blank and record the PDF in `issues`; do not spend time trying OCR in the current workflow.
    - Each subagent writes exactly one JSON file into the shared JSON output directory, for example `shard-01.json`, `shard-02.json`.
    - Each JSON file must contain one object with `records` and `issues`.
@@ -59,7 +65,7 @@ At the start of the task, tell the user that scanned/image-only PDFs cannot curr
 ## Resources
 
 - `references/schema-review.md`: how to turn a loose user field document into a clear extraction contract.
-- `references/workflow.md`: parallel subagent sharding, shared JSON output rules, incremental update rules, duplicate policy, and final report requirements.
+- `references/workflow.md`: limited subagent sharding, shared JSON output rules, incremental update rules, duplicate policy, and final report requirements.
 
 ## Subagent Policy
 
@@ -76,13 +82,16 @@ If using `TaskCreate`/task tools instead of direct `Agent` calls, first call `To
 
 Use the discovered schemas exactly. In particular, use `subject` for the task name; do not send a `title` parameter. Use `taskId` for task IDs; do not send `task_id`. If task schema discovery fails, use the already available `Agent` tool instead of guessing task parameters.
 
-Use `subagent_type: "general-purpose"` for every extraction subagent. Use at most 10 subagents total. Assign non-overlapping PDF shards with at most 3 PDFs per subagent. Do not ask subagents to edit the same Excel file; they should produce JSON only.
+Use `subagent_type: "general-purpose"` for every extraction subagent. Use at most 5 subagents concurrently. Assign at most 3 PDFs to each extraction subagent. If more PDFs remain, process them in additional waves after the current wave finishes and its JSON files exist. Do not ask subagents to edit the same Excel file; they should produce JSON only.
 
 Before spawning subagents, choose or create a single shared JSON output directory. Every subagent must write one `.json` file directly inside that directory. Use stable filenames such as `shard-01.json`; do not let multiple subagents write the same file.
 
 Subagent JSON must be written to disk, not returned only as prose or pasted into the final message. Require this exact behavior in every subagent prompt:
 
 - Use `PDFExtract` to read assigned PDFs.
+- Use `WebSearch`/`WebFetch` when needed to verify DOI, publication metadata, impact factor, guideline source, or other requested fields not reliably available in the PDF.
+- Do not proactively fill impact factor, journal quartile, or other journal metrics when the sample/existing Excel leaves those columns blank. Only fill them when explicitly required by the field contract and verified from a reliable source with the metric year.
+- Only write web-derived values when the source is reliable and the subagent records evidence. Leave uncertain values blank.
 - Use `Write` to create the assigned shard JSON file.
 - Return only a concise completion note with the JSON file path and issue count.
 - Do not paste the full extracted JSON into the final response.

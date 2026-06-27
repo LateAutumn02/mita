@@ -7,7 +7,7 @@ const { frontmatter, content: SKILL_BODY } = parseFrontmatter(SKILL_MD)
 const DESCRIPTION =
   typeof frontmatter.description === 'string'
     ? frontmatter.description
-    : 'Review a user-provided literature field specification, split PDFs across subagents, collect shard JSON, and merge into Excel.'
+    : 'Review a user-provided literature field specification, split PDFs across limited subagent shards, collect shard JSON files, and merge into Excel.'
 
 export function registerLiteratureFieldExtractionSkill(): void {
   registerBundledSkill({
