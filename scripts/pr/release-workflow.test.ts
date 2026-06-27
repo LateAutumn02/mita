@@ -159,7 +159,7 @@ describe('release desktop workflow', () => {
     expect(signedBuildStep).toContain('xcrun stapler staple "$app_path"')
     expect(signedBuildStep).toContain('xcrun stapler validate "$app_path"')
     expect(signedBuildStep).toContain('spctl -a -vv -t execute "$app_path"')
-    expect(signedBuildStep).toContain('app_path="build-artifacts/electron/${{ matrix.app_bundle_dir }}/Claude Code Haha.app"')
+    expect(signedBuildStep).toContain('app_path="build-artifacts/electron/${{ matrix.app_bundle_dir }}/mita.app"')
     expect(signedBuildStep).toContain('package_args=( ${{ matrix.builder_args }} --prepackaged "$app_path" --publish never -c.mac.notarize=false )')
     expect(signedBuildStep).toContain('find build-artifacts/electron -maxdepth 1 -type f -delete')
     expect(signedBuildStep).toContain('Signed electron-builder timed out')

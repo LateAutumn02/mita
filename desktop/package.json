@@ -1,8 +1,8 @@
 {
   "name": "claude-code-desktop",
   "private": true,
-  "version": "0.1.0",
-  "description": "Desktop coding agent workbench for Claude Code Haha.",
+  "version": "0.1.1",
+  "description": "Desktop coding agent workbench for mita.",
   "homepage": "https://github.com/LateAutumn02/mita",
   "author": {
     "name": "LateAutumn02",
@@ -12,7 +12,7 @@
   "main": "electron-dist/main.cjs",
   "build": {
     "appId": "com.claude-code-haha.desktop",
-    "productName": "Claude Code Haha",
+    "productName": "mita",
     "asar": true,
     "asarUnpack": [
       "dist/**",
