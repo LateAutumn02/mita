@@ -878,7 +878,8 @@ async function* runShellCommand({
   // Only enable for commands that are allowed to be auto-backgrounded
   // and when background tasks are not disabled
   const shouldAutoBackground = !isBackgroundTasksDisabled && isAutobackgroundingAllowed(command);
-  const shellCommand = await exec(command, abortController.signal, 'bash', {
+  const shellType = process.platform === 'win32' ? 'powershell' : 'bash'
+  const shellCommand = await exec(command, abortController.signal, shellType, {
     timeout: timeoutMs,
     onProgress(lastLines, allLines, totalLines, totalBytes, isIncomplete) {
       lastProgressOutput = lastLines;

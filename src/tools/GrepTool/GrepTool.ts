@@ -19,6 +19,7 @@ import type { PermissionDecision } from '../../utils/permissions/PermissionResul
 import { matchWildcardPattern } from '../../utils/permissions/shellRuleMatching.js'
 import { getGlobExclusionsForPluginCache } from '../../utils/plugins/orphanedPluginFilter.js'
 import { ripGrep } from '../../utils/ripgrep.js'
+import { grepWithNodeFallback } from '../../utils/searchFallback.js'
 import { semanticBoolean } from '../../utils/semanticBoolean.js'
 import { semanticNumber } from '../../utils/semanticNumber.js'
 import { plural } from '../../utils/stringUtils.js'
@@ -427,9 +428,10 @@ export const GrepTool = buildTool({
     }
 
     // Exclude orphaned plugin version directories
-    for (const exclusion of await getGlobExclusionsForPluginCache(
+    const pluginExclusions = await getGlobExclusionsForPluginCache(
       absolutePath,
-    )) {
+    )
+    for (const exclusion of pluginExclusions) {
       args.push('--glob', exclusion)
     }
 
@@ -438,7 +440,32 @@ export const GrepTool = buildTool({
     // We don't use AbortController for timeout to avoid interrupting the agent loop
     // If ripgrep times out, it throws RipgrepTimeoutError which propagates up
     // so Claude knows the search didn't complete (rather than thinking there were no matches)
-    const results = await ripGrep(args, absolutePath, abortController.signal)
+    let results: string[]
+    try {
+      results = await ripGrep(args, absolutePath, abortController.signal)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (!/ripgrep|rg|ENOENT|spawn/i.test(message)) throw error
+
+      const contextLines = context ?? context_c ?? 0
+      results = await grepWithNodeFallback({
+        rootPath: absolutePath,
+        pattern,
+        outputMode: output_mode,
+        glob,
+        type,
+        caseInsensitive: case_insensitive,
+        showLineNumbers: show_line_numbers,
+        multiline,
+        beforeContext: context_before ?? contextLines,
+        afterContext: context_after ?? contextLines,
+        ignorePatterns: [
+          ...ignorePatterns,
+          ...pluginExclusions.map(pattern => pattern.replace(/^!/, '')),
+        ],
+        signal: abortController.signal,
+      })
+    }
 
     if (output_mode === 'content') {
       // For content mode, results are the actual content lines

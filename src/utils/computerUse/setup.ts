@@ -1,4 +1,5 @@
 import { buildComputerUseTools } from '../../vendor/computer-use-mcp/index.js'
+import { spawnSync } from 'child_process'
 import { join } from 'path'
 import { fileURLToPath } from 'url'
 import { buildMcpToolName } from '../../services/mcp/mcpStringUtils.js'
@@ -10,6 +11,16 @@ import {
   getCliComputerUseCapabilities,
 } from './common.js'
 import { getChicagoCoordinateMode } from './gates.js'
+
+function hasUsablePythonRuntime(): boolean {
+  if (process.platform !== 'win32') return true
+  for (const command of ['python', 'python3', 'py']) {
+    const args = command === 'py' ? ['-3', '--version'] : ['--version']
+    const result = spawnSync(command, args, { stdio: 'ignore' })
+    if (result.status === 0) return true
+  }
+  return false
+}
 
 /**
  * Build the dynamic MCP config + allowed tool names. Mirror of
@@ -27,6 +38,10 @@ export function setupComputerUseMCP(): {
   mcpConfig: Record<string, ScopedMcpServerConfig>
   allowedTools: string[]
 } {
+  if (!hasUsablePythonRuntime()) {
+    return { mcpConfig: {}, allowedTools: [] }
+  }
+
   const allowedTools = buildComputerUseTools(
     getCliComputerUseCapabilities(),
     getChicagoCoordinateMode(),

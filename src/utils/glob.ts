@@ -8,6 +8,7 @@ import {
 import { getPlatform } from './platform.js'
 import { getGlobExclusionsForPluginCache } from './plugins/orphanedPluginFilter.js'
 import { ripGrep } from './ripgrep.js'
+import { globWithNodeFallback } from './searchFallback.js'
 
 /**
  * Extracts the static base directory from a glob pattern.
@@ -112,11 +113,29 @@ export async function glob(
   }
 
   // Exclude orphaned plugin version directories
-  for (const exclusion of await getGlobExclusionsForPluginCache(searchDir)) {
+  const pluginExclusions = await getGlobExclusionsForPluginCache(searchDir)
+  for (const exclusion of pluginExclusions) {
     args.push('--glob', exclusion)
   }
 
-  const allPaths = await ripGrep(args, searchDir, abortSignal)
+  let allPaths: string[]
+  try {
+    allPaths = await ripGrep(args, searchDir, abortSignal)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    if (!/ripgrep|rg|ENOENT|spawn/i.test(message)) throw error
+
+    allPaths = await globWithNodeFallback({
+      searchDir,
+      searchPattern,
+      ignorePatterns: [
+        ...ignorePatterns,
+        ...pluginExclusions.map(pattern => pattern.replace(/^!/, '')),
+      ],
+      includeHidden: hidden,
+      signal: abortSignal,
+    })
+  }
 
   // ripgrep returns relative paths, convert to absolute
   const absolutePaths = allPaths.map(p =>

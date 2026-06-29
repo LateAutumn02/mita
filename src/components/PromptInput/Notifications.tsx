@@ -24,6 +24,7 @@ import { formatDuration } from '../../utils/format.js';
 import { setEnvHookNotifier } from '../../utils/hooks/fileChangedWatcher.js';
 import { toIDEDisplayName } from '../../utils/ide.js';
 import { getMessagesAfterCompactBoundary } from '../../utils/messages.js';
+import { isFirstPartyAnthropicBaseUrl } from '../../utils/model/providers.js';
 import { tokenCountFromLastAPIResponse } from '../../utils/tokens.js';
 import { AutoUpdaterWrapper } from '../AutoUpdaterWrapper.js';
 import { ConfigurableShortcutHint } from '../ConfigurableShortcutHint.js';
@@ -305,7 +306,7 @@ function NotificationContent({
         </Box>}
       {(apiKeyStatus === 'invalid' || apiKeyStatus === 'missing') && <Box>
           <Text color="error" wrap="truncate">
-            {isEnvTruthy(process.env.CLAUDE_CODE_REMOTE) ? 'Authentication error · Try again' : 'Not logged in · Run /login'}
+            {isEnvTruthy(process.env.CLAUDE_CODE_REMOTE) ? 'Authentication error · Try again' : isFirstPartyAnthropicBaseUrl() ? 'Not logged in · Run /login' : 'API key missing or invalid · Open Settings > 服务商 and configure API Key'}
           </Text>
         </Box>}
       {debug && <Box>

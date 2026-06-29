@@ -30,7 +30,7 @@ import {
   isNonCustomOpusModel,
 } from 'src/utils/model/model.js'
 import { getModelStrings } from 'src/utils/model/modelStrings.js'
-import { getAPIProvider } from 'src/utils/model/providers.js'
+import { getAPIProvider, isFirstPartyAnthropicBaseUrl } from 'src/utils/model/providers.js'
 import { getIsNonInteractiveSession } from '../../bootstrap/state.js'
 import {
   API_PDF_MAX_PAGES,
@@ -155,7 +155,7 @@ export function isMediaSizeErrorMessage(msg: AssistantMessage): boolean {
 export const CREDIT_BALANCE_TOO_LOW_ERROR_MESSAGE = 'Credit balance is too low'
 export const INVALID_API_KEY_ERROR_MESSAGE = 'Not logged in · Please run /login'
 export const INVALID_API_KEY_ERROR_MESSAGE_EXTERNAL =
-  'Invalid API key · Fix external API key'
+  'API key missing or invalid · Open Settings > 服务商 and configure API Key'
 export const ORG_DISABLED_ERROR_MESSAGE_ENV_KEY_WITH_OAUTH =
   'Your ANTHROPIC_API_KEY belongs to a disabled organization · Unset the environment variable to use your subscription instead'
 export const ORG_DISABLED_ERROR_MESSAGE_ENV_KEY =
@@ -903,7 +903,7 @@ export function getAssistantMessageFromError(
 
     return createAssistantAPIErrorMessage({
       error: 'authentication_failed',
-      content: isExternalSource
+      content: isExternalSource || !isFirstPartyAnthropicBaseUrl()
         ? INVALID_API_KEY_ERROR_MESSAGE_EXTERNAL
         : INVALID_API_KEY_ERROR_MESSAGE,
     })
@@ -950,9 +950,11 @@ export function getAssistantMessageFromError(
 
     return createAssistantAPIErrorMessage({
       error: 'authentication_failed',
-      content: getIsNonInteractiveSession()
-        ? `Failed to authenticate. ${API_ERROR_MESSAGE_PREFIX}: ${error.message}`
-        : `Please run /login · ${API_ERROR_MESSAGE_PREFIX}: ${error.message}`,
+      content: !isFirstPartyAnthropicBaseUrl()
+        ? `${INVALID_API_KEY_ERROR_MESSAGE_EXTERNAL}. ${API_ERROR_MESSAGE_PREFIX}: ${error.message}`
+        : getIsNonInteractiveSession()
+          ? `Failed to authenticate. ${API_ERROR_MESSAGE_PREFIX}: ${error.message}`
+          : `Please run /login · ${API_ERROR_MESSAGE_PREFIX}: ${error.message}`,
     })
   }
 

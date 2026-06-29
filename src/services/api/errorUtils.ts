@@ -208,6 +208,12 @@ export function formatAPIError(error: APIError): string {
     if (code === 'ETIMEDOUT') {
       return 'Request timed out. Check your internet connection and proxy settings'
     }
+    if (code === 'ECONNREFUSED') {
+      return 'Unable to connect to API: connection refused. Check the service provider URL, proxy, and network connection'
+    }
+    if (code === 'ENOTFOUND' || code === 'EAI_AGAIN') {
+      return 'Unable to connect to API: service provider host could not be resolved. Check the provider URL and network connection'
+    }
 
     // Handle SSL/TLS errors with specific messages
     if (isSSLError) {
