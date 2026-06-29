@@ -2,6 +2,8 @@
 
 在处理超过 5 个 PDF、启动子 agent，或执行增量 Excel 更新之前，必须先阅读本文件。
 
+默认用户环境是 Windows 电脑。示例路径、输出路径和用户提示应优先使用 Windows 习惯；不要要求用户安装 Linux/macOS 工具，也不要把 shell PDF/Excel 工具当作最终用户流程的前置条件。
+
 ## 输入盘点
 
 1. 统计 PDF 数量。
@@ -28,6 +30,8 @@
 使用 task 工具前，必须先加载对应 task 工具的 schema。每个 task 工具首次使用前都要调用 `ToolSearch`，例如 `select:TaskCreate`、`select:TaskUpdate`、`select:TaskGet`、`select:TaskList`、`select:TaskOutput`、`select:TaskStop`。严格按发现到的 schema 调用：任务名称/标题参数是 `subject`，不是 `title`；任务 ID 参数是 `taskId`，不是 `task_id`。不要凭记忆猜测参数。如果 task 工具没有加载，或 schema 校验失败，则退回直接调用 `Agent`。
 
 启动子 agent 前，先创建或选择一个共享 JSON 输出目录，例如 `<output-dir>/literature-json/`。每个子 agent 必须在该目录的直接子级写入且只写入一个 `.json` 文件。使用稳定的分片文件名，例如 `shard-01.json`、`shard-02.json`，以此类推。
+
+这些 shard JSON、临时字段说明、临时工作簿、日志和重试文件都属于中间产物。主 agent 可以在处理过程中使用它们，但交付前必须删除，不要把它们留在用户目录里。
 
 ## 子 Agent 规则
 
@@ -133,6 +137,7 @@ Task 工具提醒：如果用 task 工具包装这段提示词，必须确认已
    - 规范化后的 PDF 文件名/来源字段
 6. 将新 PDF 提取为共享 JSON 输出目录中的 shard JSON 文件。每个 shard 最多 3 个 PDF。合并前必须确认这些文件存在。
 7. 使用 `LiteratureExcel`，传入 `existing_excel_path`、`json_dir`、`output_path`、`columns`，跳过完全重复记录并追加新记录。
+   - `output_path` 必须使用规范文件名。优先按主题/文件夹命名，例如 `<主题名>_文献提取结果.xlsx`；增量更新可使用 `<主题名>_文献提取结果_增量更新.xlsx`。不要使用 `f1.xlsx`、`result.xlsx`、`output.xlsx`、`merged.xlsx` 这类临时名字作为最终交付文件名。
 8. 当题名相似度高但不完全一致时，单独报告可能重复。
 9. 新行追加到已有行之后。
 10. 只有当存在序号列，且用户要求重新编号，或新追加行需要自动编号时，才重新编号序号列。
@@ -180,6 +185,7 @@ Task 工具提醒：如果用 task 工具包装这段提示词，必须确认已
 - 确认扫描件/OCR 相关行没有被静默留空；它们必须有清晰的 issue 记录。
 - 抽查 DOI、影响因子、指南机构等 Web 补充字段是否与来源一致。
 - 交付工作簿前，先修正明确的合并或格式问题。
+- 交付工作簿前，删除本次流程生成的中间产物，包括 shard JSON 目录、临时字段说明、草稿 Excel、日志、重试文件和 scratch 文件。只保留最终交付的 Excel 文件；如果任务本身要求生成两个 Excel，则只保留这两个 Excel 和用户原始输入文件。
 
 ## 最终报告
 

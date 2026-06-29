@@ -4224,6 +4224,7 @@ function AboutSettings() {
   const error = useUpdateStore((s) => s.error)
   const checkedAt = useUpdateStore((s) => s.checkedAt)
   const checkForUpdates = useUpdateStore((s) => s.checkForUpdates)
+  const downloadUpdate = useUpdateStore((s) => s.downloadUpdate)
   const installUpdate = useUpdateStore((s) => s.installUpdate)
   const initialize = useUpdateStore((s) => s.initialize)
   const [showUpdateProxyAdvanced, setShowUpdateProxyAdvanced] = useState(false)
@@ -4533,7 +4534,7 @@ function AboutSettings() {
             <div className="mt-3 flex justify-end">
               <Button
                 size="sm"
-                onClick={() => void installUpdate()}
+                onClick={() => void (updateStatus === 'downloaded' ? installUpdate() : downloadUpdate())}
                 loading={updateStatus === 'downloading' || updateStatus === 'installing' || updateStatus === 'restarting'}
                 disabled={updateStatus === 'checking' || updateStatus === 'downloading'}
               >

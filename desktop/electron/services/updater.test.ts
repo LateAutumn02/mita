@@ -166,4 +166,18 @@ describe('Electron updater service', () => {
 
     expect(updater.quitAndInstall).toHaveBeenCalledWith(false, true)
   })
+
+  it('rechecks before downloading when renderer state outlives native pending update state', async () => {
+    const localUpdater = fakeUpdater()
+    localUpdater.checkForUpdates.mockResolvedValue({ updateInfo: { version: '1.2.5' } })
+    localUpdater.downloadUpdate.mockResolvedValue(undefined)
+    const service = new ElectronUpdaterService(localUpdater)
+    const events: unknown[] = []
+
+    await service.downloadUpdate(event => events.push(event))
+
+    expect(localUpdater.checkForUpdates).toHaveBeenCalledTimes(1)
+    expect(localUpdater.downloadUpdate).toHaveBeenCalledTimes(1)
+    expect(events).toContainEqual({ event: 'Finished' })
+  })
 })

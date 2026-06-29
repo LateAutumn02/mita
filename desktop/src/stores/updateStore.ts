@@ -417,7 +417,7 @@ export const useUpdateStore = create<UpdateStore>((set, get) => ({
       if (!pendingUpdateDownloaded) {
         await get().downloadUpdate()
       }
-      if (!pendingUpdateDownloaded) return
+      if (!pendingUpdateDownloaded || pendingUpdate !== update) return
 
       set((state) => ({
         ...state,
@@ -450,7 +450,7 @@ export const useUpdateStore = create<UpdateStore>((set, get) => ({
         ...state,
         status: pendingUpdateDownloaded ? 'downloaded' : 'available',
         error: getErrorMessage(error),
-        shouldPrompt: true,
+        shouldPrompt: pendingUpdateDownloaded,
       }))
     }
   },

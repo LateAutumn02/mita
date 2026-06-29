@@ -1879,6 +1879,7 @@ describe('Settings > About tab', () => {
       shouldPrompt: true,
       initialize: vi.fn().mockResolvedValue(undefined),
       checkForUpdates: vi.fn().mockResolvedValue(null),
+      downloadUpdate: vi.fn().mockResolvedValue(undefined),
       installUpdate: vi.fn().mockResolvedValue(undefined),
       dismissPrompt: vi.fn(),
     })
@@ -1917,6 +1918,7 @@ describe('Settings > About tab', () => {
       shouldPrompt: false,
       initialize: vi.fn().mockResolvedValue(undefined),
       checkForUpdates: vi.fn().mockResolvedValue(null),
+      downloadUpdate: vi.fn().mockResolvedValue(undefined),
       installUpdate: vi.fn().mockResolvedValue(undefined),
       dismissPrompt: vi.fn(),
     })
@@ -1940,6 +1942,7 @@ describe('Settings > About tab', () => {
       shouldPrompt: true,
       initialize: vi.fn().mockResolvedValue(undefined),
       checkForUpdates: vi.fn().mockResolvedValue(null),
+      downloadUpdate: vi.fn().mockResolvedValue(undefined),
       installUpdate: vi.fn().mockResolvedValue(undefined),
       dismissPrompt: vi.fn(),
     })
@@ -1948,6 +1951,46 @@ describe('Settings > About tab', () => {
 
     expect(await screen.findByText('Downloading update... 1.5 KB downloaded')).toBeInTheDocument()
     expect(screen.queryByText('Downloading update... 0%')).not.toBeInTheDocument()
+  })
+
+  it('downloads first and only installs after the update is downloaded', async () => {
+    const downloadUpdate = vi.fn().mockResolvedValue(undefined)
+    const installUpdate = vi.fn().mockResolvedValue(undefined)
+    useUpdateStore.setState({
+      status: 'available',
+      availableVersion: '0.1.5',
+      releaseNotes: '# Claude Code Haha v0.1.5',
+      progressPercent: 0,
+      downloadedBytes: 0,
+      totalBytes: null,
+      error: null,
+      checkedAt: null,
+      shouldPrompt: true,
+      initialize: vi.fn().mockResolvedValue(undefined),
+      checkForUpdates: vi.fn().mockResolvedValue(null),
+      downloadUpdate,
+      installUpdate,
+      dismissPrompt: vi.fn(),
+    })
+
+    render(<Settings />)
+
+    await act(async () => {
+      fireEvent.click(await screen.findByRole('button', { name: 'Update now' }))
+    })
+
+    expect(downloadUpdate).toHaveBeenCalledTimes(1)
+    expect(installUpdate).not.toHaveBeenCalled()
+
+    act(() => {
+      useUpdateStore.setState({ status: 'downloaded' })
+    })
+
+    await act(async () => {
+      fireEvent.click(await screen.findByRole('button', { name: 'Install and restart' }))
+    })
+
+    expect(installUpdate).toHaveBeenCalledTimes(1)
   })
 
   it('saves a manual update proxy from the advanced update controls', async () => {
