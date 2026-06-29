@@ -26,6 +26,7 @@
 - 子 agent 完成并写出 JSON 后即结束，不要继续接新任务。
 - PDF 超过 15 个时，分多轮处理：每轮最多 5 个子 agent、最多 15 个 PDF。确认本轮所有 JSON 存在后，再启动下一轮。
 - 特别大的 PDF、扫描件 PDF、字段要求复杂的 PDF 可以单独成为一个 shard，不要和其他 PDF 合并。
+- 主 agent 必须监控子 agent 进度。单个 shard 超过 6 分钟仍未写出 JSON，或日志显示一直卡在同一个大 PDF、输出 0 字节/极少文本时，应停止该子 agent，并只重试一次“严格预检版”任务。不要等待十几分钟。
 
 使用 task 工具前，必须先加载对应 task 工具的 schema。每个 task 工具首次使用前都要调用 `ToolSearch`，例如 `select:TaskCreate`、`select:TaskUpdate`、`select:TaskGet`、`select:TaskList`、`select:TaskOutput`、`select:TaskStop`。严格按发现到的 schema 调用：任务名称/标题参数是 `subject`，不是 `title`；任务 ID 参数是 `taskId`，不是 `task_id`。不要凭记忆猜测参数。如果 task 工具没有加载，或 schema 校验失败，则退回直接调用 `Agent`。
 
@@ -39,6 +40,8 @@
 - 每个子 agent 的提示词里都必须包含规范化后的提取规则和目标 `columns` 数组。
 - 每个子 agent 只能处理提示词中指定的 PDF 列表，最多 3 个 PDF。
 - 告诉子 agent 使用 `PDFExtract`，并设置有限的 `start_page`、`max_pages`、`max_chars`，不要使用 shell PDF 工具。
+- 告诉子 agent 每个 PDF 必须先做文本层预检：先读前 1-3 页，并限制 `max_pages` 和 `max_chars`。如果连续两次读取结果为空、极短或明显是图片页，立即判定为扫描件/纯图片 PDF，写入 issue，停止继续读取该 PDF。
+- 告诉子 agent 默认每个 PDF 最多调用 3 次 `PDFExtract`。只有已经看到目录、章节标题或明确证据位置时，才允许继续读取后续小范围页面。禁止为了“看完整篇”而连续读取所有页面。
 - 告诉子 agent 当前 OCR 已禁用。如果 `PDFExtract` 报告页面为空、疑似扫描件/纯图片页，子 agent 必须记录 issue，并将无法核验的字段留空。
 - 子 agent 可以使用 `WebSearch` 和 `WebFetch` 验证或补充 PDF 中无法可靠确认的字段，例如 DOI、期刊信息、指南发布机构、官网/出版页、影响因子等。
 - 如果官方样例或已有 Excel 中的影响因子、JCR 分区、中科院分区等期刊指标列整体为空，子 agent 不要主动补这些字段。只有字段说明书明确要求填写，且可靠来源能核验数值和指标年份时，才允许填写。
@@ -86,8 +89,9 @@ Rules:
 - Process only the PDFs listed in this prompt. Do not process any other PDF.
 - This shard contains at most 3 PDFs.
 - Use the column names exactly as provided.
-- Read each PDF with PDFExtract. Start with early pages for title/metadata, then jump to sections needed by the field contract when possible. For long PDFs, continue from nextPage rather than reading the whole file at once.
-- If PDFExtract reports a scanned/image-only page, do not retry OCR. Add an issue and leave unverifiable fields blank.
+- Read each PDF with PDFExtract using strict bounded calls. First run a text-layer preflight on pages 1-3 with limited max_pages and max_chars.
+- If two bounded reads return empty, near-empty, or image-only text, mark the PDF as scanned/image-only, add an issue, leave unverifiable fields blank, and stop processing that PDF.
+- Do not read the full PDF page by page. By default, call PDFExtract at most 3 times per PDF. Continue with nextPage only after locating a relevant table of contents, section title, or evidence page.
 - You may use WebSearch and WebFetch to verify or supplement requested fields such as DOI, journal metadata, publisher page, guideline source, and impact factor.
 - Do not proactively fill impact factor, journal quartile, or other journal metrics when the official sample or existing Excel leaves those columns blank.
 - Only fill journal metrics when the extraction contract explicitly requires them and the value plus metric year are verified from a reliable source.
@@ -116,11 +120,12 @@ Task 工具提醒：如果用 task 工具包装这段提示词，必须确认已
 推荐顺序：
 
 1. 先对前几页调用 `PDFExtract`，获取题名、作者、期刊/来源、摘要，以及可能存在的目录。
-2. 对大型 PDF，使用 `start_page` 和 `nextPage` 只读取字段要求所需页面。
-3. 如果文本为空、过少或乱码，标记该 PDF 可能是扫描件/纯图片 PDF。
-4. 当前工作流禁用 OCR。不要调用 OCR 工具，也不要反复重试大型扫描件 PDF。
-5. 对低置信度的来源字段，只能结合文件名、可读元数据和可靠网页；无法核验的字段留空，并添加一条 `issues` 记录。
-6. 绝不要仅凭文件名推断数值结果、DOI、影响因子、学会/协会、推荐意见文本或样本量。
+2. 每个 PDF 先做文本层预检：读取前 1-3 页，并限制 `max_pages` 和 `max_chars`。
+3. 如果连续两次读取文本为空、过少或乱码，立即标记该 PDF 可能是扫描件/纯图片 PDF，并停止继续读取该 PDF。
+4. 对大型 PDF，使用 `start_page` 和 `nextPage` 只读取字段要求所需页面。默认每个 PDF 最多调用 3 次 `PDFExtract`；只有已经定位到目录、章节标题或证据页时，才继续读取小范围页面。
+5. 当前工作流禁用 OCR。不要调用 OCR 工具，也不要反复重试大型扫描件 PDF。
+6. 对低置信度的来源字段，只能结合文件名、可读元数据和可靠网页；无法核验的字段留空，并添加一条 `issues` 记录。
+7. 绝不要仅凭文件名推断数值结果、DOI、影响因子、学会/协会、推荐意见文本或样本量。
 
 ## 增量 Excel 更新
 

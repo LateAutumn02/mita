@@ -37,17 +37,22 @@ description: 审核并规范用户提供的文献字段说明书，再从一批 
    - 每个提取子 agent 最多处理 3 个 PDF。
    - PDF 较多时分轮处理：每轮最多启动 5 个子 agent；确认本轮所有 JSON 文件存在后，再启动下一轮。
    - 这个有限分片策略用于平衡速度和准确性，避免一次创建过多并行任务。
+   - 特别大的 PDF、疑似扫描件 PDF、字段要求复杂的 PDF，优先单独分给一个子 agent；不要和其他 PDF 混在同一个 shard 里。
+   - 主 agent 必须监控子 agent 进度。单个 shard 超过 6 分钟仍没有写出 JSON，或日志显示反复读取同一个大 PDF 但没有有效文本时，应停止该子 agent，并只重试一次“严格预检版”任务。不要等待十几分钟。
    - 启动子 agent 或做增量 Excel 更新前，先阅读 `references/workflow.md`。
    - 使用 task 工具前，先用 `ToolSearch` 加载对应 schema，例如 `select:TaskCreate`、`select:TaskUpdate`、`select:TaskGet`、`select:TaskOutput` 或 `select:TaskStop`。严格使用发现到的参数名：任务 ID 是 `taskId`，不是 `task_id`；任务标题字段是 `subject`，不是 `title`。
 
 4. 委托提取。
    - 启动子 agent 前，先创建一个共享 JSON 输出目录，例如 `<输出目录>\literature-json\`。
    - 每个子 agent 收到最多 3 个 PDF、规范化后的提取契约、目标 `columns` 列表，以及必要的已有行去重信息。
-   - 每个子 agent 使用 `PDFExtract` 按有限页码范围读取 PDF。大型 PDF 要根据 `nextPage` 继续读取，不要一次性读完整篇。
+   - 每个子 agent 使用 `PDFExtract` 按有限页码范围读取 PDF。禁止为了“看完整篇”而连续读取所有页面。
+   - 每个 PDF 必须先做文本层预检：优先读取前 1-3 页，并限制 `max_pages` 和 `max_chars`。如果连续两次读取结果为空、极短或明显是图片页，立即判定为扫描件/纯图片 PDF，写入 issue，停止继续读取该 PDF。
+   - 对大型 PDF，只围绕字段要求读取必要页面；默认每个 PDF 不超过 3 次 `PDFExtract` 调用。只有已经看到目录、章节标题或明确证据位置时，才允许继续使用 `nextPage` 读取后续小范围页面。
    - 子 agent 可以使用 `WebSearch` 和 `WebFetch` 验证或补充 PDF 中无法可靠确认的字段，例如 DOI、期刊信息、指南来源、出版页面、影响因子等。来自网页的信息必须在 `evidence` 或 `issues` 中记录来源说明。
    - 如果已有 Excel 或样例中影响因子、分区等期刊指标列为空，不要主动补这些字段。只有字段说明书明确要求，且可靠来源能验证数值和指标年份时，才填写。
    - 准确性优先于完整性。DOI、影响因子、期刊分区、学会/机构、推荐意见原文、样本量、数值结果、引文信息等字段，必须由 PDF 或可靠网页验证后才能填写。无法验证时留空并记录 issue。
    - 如果 `PDFExtract` 报告扫描件/纯图片页，则无法验证的字段留空，并把该 PDF 记录到 `issues`；当前流程不要尝试 OCR。
+   - 如果 `PDFExtract` 长时间没有返回、返回 0 字节文本，或只能读到极少文本，子 agent 必须尽快写出包含 issue 的 JSON，不能继续消耗时间。
    - 每个子 agent 必须且只能在共享 JSON 目录中写入一个 JSON 文件，例如 `shard-01.json`、`shard-02.json`。
    - 每个 JSON 文件必须是一个对象，包含 `records` 和 `issues`。
    - 不接受只出现在子 agent 最终回复里的提取记录。如果 JSON 文件不存在，必须要求该子 agent 先写文件，再合并。
@@ -93,9 +98,13 @@ description: 审核并规范用户提供的文献字段说明书，再从一批 
 
 启动子 agent 前，先选择或创建一个共享 JSON 输出目录。每个子 agent 必须在该目录直接写入一个 `.json` 文件。使用稳定文件名，例如 `shard-01.json`；不要让多个子 agent 写同一个文件。
 
+主 agent 不要无限等待子 agent。超过 6 分钟没有 JSON 文件时，检查输出；如果确认卡在大 PDF 或扫描件上，停止该子 agent，重试一次严格预检任务。重试仍失败则记录 issue，并继续合并其他 shard。
+
 子 agent 的提取结果必须写入磁盘，不能只在最终回复里贴出来。每个子 agent 提示词里都要明确要求：
 
 - 使用 `PDFExtract` 读取分配的 PDF。
+- 每个 PDF 先做文本层预检：只读前 1-3 页，限制 `max_pages` 和 `max_chars`。若连续两次为空、极短或疑似图片页，立即判定扫描件，写 issue，停止该 PDF。
+- 禁止连续读取完整 PDF。默认每个 PDF 最多调用 3 次 `PDFExtract`；只有字段契约明确需要且已经定位到相关页面时，才继续读取小范围页面。
 - 必要时使用 `WebSearch`/`WebFetch` 验证 DOI、出版信息、影响因子、指南来源或其他 PDF 中无法可靠确认的字段。
 - 当样例或已有 Excel 中影响因子、期刊分区等期刊指标列为空时，不要主动补这些字段。只有字段契约明确要求，且可靠来源能验证数值和指标年份时，才填写。
 - 网页来源字段必须可靠且记录证据；不确定的值留空。
@@ -123,3 +132,5 @@ description: 审核并规范用户提供的文献字段说明书，再从一批 
 生产环境读取 PDF 必须使用内置 `PDFExtract` 工具或等价的 cchaha 应用代码。生产环境写 Excel 必须使用内置 `LiteratureExcel` 工具或等价的 cchaha 应用代码。外部脚本只能作为开发辅助，不能作为最终用户流程的必需条件。
 
 当前流程禁用 OCR，因为本地 OCR 在子 agent 执行中太慢，不够稳定。子 agent 遇到扫描件/纯图片 PDF 时，必须记录到 `issues`，并将无法验证的字段留空，不要反复尝试 OCR。
+
+性能优先级：不要为了一个无法读取的扫描件拖慢整批任务。扫描件预检失败后应快速输出 issue，让主 agent 继续处理其他 PDF。
