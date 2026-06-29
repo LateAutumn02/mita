@@ -27,38 +27,17 @@ jobs:
   signing-preflight:
     runs-on: ubuntu-latest
     outputs:
-      macos_signed: ${{ steps.validate.outputs.macos_signed }}
+      macos_signed: 'false'
     steps:
-      - name: Validate release signing and notarization secrets
+      - name: Validate release signing secrets
         id: validate
         shell: bash
         env:
-          CSC_LINK: ${{ secrets.MACOS_CERTIFICATE }}
-          CSC_KEY_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           WIN_CSC_LINK: ${{ secrets.WINDOWS_CERTIFICATE }}
           WIN_CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
         run: |
-          # macOS signing + notarization is preferred: Squirrel.Mac auto-update and
-          # first-launch Gatekeeper approval work best with a notarized Developer ID build.
-          # A migration release may still ship unsigned while Apple Developer ID setup is pending.
-          missing=()
-          [ -n "$CSC_LINK" ] || missing+=("MACOS_CERTIFICATE")
-          [ -n "$CSC_KEY_PASSWORD" ] || missing+=("MACOS_CERTIFICATE_PASSWORD")
-          [ -n "$APPLE_ID" ] || missing+=("APPLE_ID")
-          [ -n "$APPLE_APP_SPECIFIC_PASSWORD" ] || missing+=("APPLE_APP_SPECIFIC_PASSWORD")
-          [ -n "$APPLE_TEAM_ID" ] || missing+=("APPLE_TEAM_ID")
-          if [ "${#missing[@]}" -gt 0 ]; then
-            printf '::warning::Missing macOS signing/notarization secrets (%s): macOS artifacts will be unsigned and users must use install-macos-unsigned.sh.\n' "${missing[*]}"
-            echo "macos_signed=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "macos_signed=true" >> "$GITHUB_OUTPUT"
-          fi
           # Windows signing is optional: an unsigned NSIS installer still auto-updates
-          # (electron-updater), it only triggers SmartScreen warnings. Warn, do not block,
-          # so releases can ship with an Apple Developer ID alone.
+          # (electron-updater), it only triggers SmartScreen warnings.
           win_missing=()
           [ -n "$WIN_CSC_LINK" ] || win_missing+=("WINDOWS_CERTIFICATE")
           [ -n "$WIN_CSC_KEY_PASSWORD" ] || win_missing+=("WINDOWS_CERTIFICATE_PASSWORD")
@@ -73,18 +52,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: macos-latest
-            target_triple: aarch64-apple-darwin
-            builder_args: --mac dmg zip --arm64
-            app_bundle_dir: mac-arm64
-            label: macOS-ARM64
-            smoke_platform: macos
-          - platform: macos-latest
-            target_triple: x86_64-apple-darwin
-            builder_args: --mac dmg zip --x64
-            app_bundle_dir: mac
-            label: macOS-x64
-            smoke_platform: macos
           - platform: windows-latest
             target_triple: x86_64-pc-windows-msvc
             builder_args: --win nsis --x64
@@ -366,24 +333,6 @@ jobs:
           APP_VERSION: ${{ steps.version.outputs.value }}
         run: |
           case "${{ matrix.label }}" in
-            macOS-ARM64)
-              expected=(
-                "Claude-Code-Haha-${APP_VERSION}-mac-arm64.dmg"
-                "Claude-Code-Haha-${APP_VERSION}-mac-arm64.dmg.blockmap"
-                "Claude-Code-Haha-${APP_VERSION}-mac-arm64.zip"
-                "Claude-Code-Haha-${APP_VERSION}-mac-arm64.zip.blockmap"
-                "latest-mac.yml"
-              )
-              ;;
-            macOS-x64)
-              expected=(
-                "Claude-Code-Haha-${APP_VERSION}-mac-x64.dmg"
-                "Claude-Code-Haha-${APP_VERSION}-mac-x64.dmg.blockmap"
-                "Claude-Code-Haha-${APP_VERSION}-mac-x64.zip"
-                "Claude-Code-Haha-${APP_VERSION}-mac-x64.zip.blockmap"
-                "latest-mac.yml"
-              )
-              ;;
             Windows-x64)
               expected=(
                 "Claude-Code-Haha-${APP_VERSION}-win-x64.exe"
@@ -496,14 +445,6 @@ jobs:
           APP_VERSION: ${{ steps.version.outputs.value }}
         run: |
           expected=(
-            "Claude-Code-Haha-${APP_VERSION}-mac-arm64.dmg"
-            "Claude-Code-Haha-${APP_VERSION}-mac-arm64.dmg.blockmap"
-            "Claude-Code-Haha-${APP_VERSION}-mac-arm64.zip"
-            "Claude-Code-Haha-${APP_VERSION}-mac-arm64.zip.blockmap"
-            "Claude-Code-Haha-${APP_VERSION}-mac-x64.dmg"
-            "Claude-Code-Haha-${APP_VERSION}-mac-x64.dmg.blockmap"
-            "Claude-Code-Haha-${APP_VERSION}-mac-x64.zip"
-            "Claude-Code-Haha-${APP_VERSION}-mac-x64.zip.blockmap"
             "Claude-Code-Haha-${APP_VERSION}-win-x64.exe"
             "Claude-Code-Haha-${APP_VERSION}-win-x64.exe.blockmap"
           )
@@ -531,7 +472,6 @@ jobs:
         shell: bash
         run: |
           expected=(
-            "latest-mac.yml"
             "latest.yml"
           )
           missing=()
@@ -553,12 +493,9 @@ jobs:
           prerelease: false
           fail_on_unmatched_files: true
           files: |
-            artifacts/release-assets/**/*.dmg
-            artifacts/release-assets/**/*.zip
             artifacts/release-assets/**/*.exe
             artifacts/release-assets/**/*.blockmap
             artifacts/update-metadata-standard/*.yml
-            desktop/scripts/install-macos-unsigned.sh
 
       - name: Ensure workflow-dispatch release remains draft
         if: github.event_name == 'workflow_dispatch' && inputs.draft == true

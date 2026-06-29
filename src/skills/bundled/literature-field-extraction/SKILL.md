@@ -55,6 +55,9 @@ At the start of the task, tell the user that scanned/image-only PDFs cannot curr
    - Use `LiteratureExcel` with the normalized `columns` list to merge JSON into the final `.xlsx`.
    - When an existing Excel is provided, pass it as `existing_excel_path` so existing rows are preserved and new rows are appended.
    - After writing Excel, the main agent must reopen or inspect the whole table and strictly check column order, row count, serial numbers, duplicate rows, empty rows, obviously malformed dates/numbers, misplaced content, and unresolved issue rows. Correct clear formatting or merge problems before delivery.
+   - Final quality inspection is owned by the main agent. Do not spawn a separate validation subagent by default.
+   - Final inspection must primarily use the generated shard JSON files, their `issues`, the final Excel workbook, and the normalized field specification. Do not re-extract or re-read every PDF just to validate the table.
+   - Reopen a PDF or use WebSearch/WebFetch during validation only for a specific suspicious field, conflict, missing evidence, or user-requested spot check.
    - Do not rely on system Python, Office, or user-installed PDF/Excel tools.
 
 6. Deliver output.
