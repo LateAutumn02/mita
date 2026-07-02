@@ -752,8 +752,8 @@ export const jp: Record<TranslationKey, string> = {
 
   // Settings > Memory
   'settings.tab.memory': 'メモリ',
-  'settings.memory.title': 'プロジェクトメモリ',
-  'settings.memory.description': 'Claude が各プロジェクト向けに書き込む Markdown メモリファイルを確認・編集します。これらのファイルは ~/.claude/projects/<project>/memory/ の下に保存され、CLI ランタイムによって読み込まれます。',
+  'settings.memory.title': 'グローバルメモリ',
+  'settings.memory.description': 'Claude が書き込む Markdown メモリファイルを確認・編集します。これらのファイルは ~/.claude/memory/ の下にグローバルに保存され、CLI ランタイムによってすべてのプロジェクトで読み込まれます。',
   'settings.memory.refresh': '更新',
   'settings.memory.projects': 'プロジェクト',
   'settings.memory.files': 'メモリファイル',
@@ -1915,7 +1915,7 @@ export const jp: Record<TranslationKey, string> = {
   'slashCmd.cost.description': 'セッションの使用量とコストを表示',
   'slashCmd.context.description': '現在のコンテキスト使用量を表示',
   'slashCmd.plugin.description': '設定でデスクトップのプラグイン操作を開く',
-  'slashCmd.memory.description': '設定でプロジェクトのメモリファイルを開く',
+  'slashCmd.memory.description': '設定でメモリファイルを開く',
   'slashCmd.doctor.description': '診断で Doctor を開く',
   'slashCmd.compact.description': '会話のコンテキストを圧縮',
   'slashCmd.clear.description': '会話履歴をクリア',

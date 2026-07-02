@@ -752,8 +752,8 @@ export const zh: Record<TranslationKey, string> = {
 
   // Settings > Memory
   'settings.tab.memory': '記憶',
-  'settings.memory.title': '專案記憶',
-  'settings.memory.description': '檢視和編輯 Claude 為每個專案寫入的 Markdown 記憶檔案。這些檔案存放在 ~/.claude/projects/<project>/memory/，會被 CLI 執行時載入。',
+  'settings.memory.title': '全域記憶',
+  'settings.memory.description': '檢視和編輯 Claude 寫入的 Markdown 記憶檔案。這些檔案全域存放在 ~/.claude/memory/，會被 CLI 執行時跨專案載入。',
   'settings.memory.refresh': '重新整理',
   'settings.memory.projects': '專案',
   'settings.memory.files': '記憶檔案',
@@ -1917,7 +1917,7 @@ export const zh: Record<TranslationKey, string> = {
   'slashCmd.cost.description': '檢視會話用量和費用',
   'slashCmd.context.description': '檢視當前上下文用量',
   'slashCmd.plugin.description': '在設定中開啟外掛管理',
-  'slashCmd.memory.description': '在設定中開啟專案記憶檔案',
+  'slashCmd.memory.description': '在設定中開啟記憶檔案',
   'slashCmd.doctor.description': '在診斷中開啟 Doctor',
   'slashCmd.compact.description': '壓縮會話上下文',
   'slashCmd.clear.description': '清空會話歷史',

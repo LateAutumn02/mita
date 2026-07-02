@@ -1,21 +1,24 @@
 /**
- * Memory REST API
+ * Memory REST API (global auto-memory directory)
  *
- * GET  /api/memory/projects?cwd=...       — list project-scoped memory dirs
- * GET  /api/memory/files?projectId=...    — list markdown memory files
- * GET  /api/memory/file?projectId=...&path=...
- * PUT  /api/memory/file                   — update/create a markdown memory file
+ * GET  /api/memory/projects        — single global memory entry
+ * GET  /api/memory/files           — list markdown memory files
+ * GET  /api/memory/file?path=...   — read a memory file
+ * PUT  /api/memory/file            — update/create a markdown memory file
+ *
+ * Memory files live in the global auto-memory directory resolved by
+ * getAutoMemPath(): ~/.claude/memory/ when autoMemoryDirectory is set in
+ * user settings (the recommended global configuration), or
+ * ~/.claude/projects/<git-root>/memory/ by default. The projectId
+ * parameter is accepted on /files and /file for backward compatibility
+ * with the desktop client but no longer affects the memory directory —
+ * all entries map to the same global directory.
  */
 
 import * as fs from 'node:fs/promises'
-import { homedir } from 'node:os'
 import * as path from 'node:path'
-import { getClaudeConfigHomeDir } from '../../utils/envUtils.js'
+import { getAutoMemPath } from '../../memdir/paths.js'
 import { parseFrontmatter } from '../../utils/frontmatterParser.js'
-import { findCanonicalGitRoot } from '../../utils/git.js'
-import { sanitizePath } from '../../utils/path.js'
-import { extractJsonStringField } from '../../utils/sessionStoragePortable.js'
-import { getCwd } from '../../utils/cwd.js'
 import { parseMemoryType } from '../../memdir/memoryTypes.js'
 import { ApiError, errorResponse } from '../middleware/errorHandler.js'
 
@@ -41,10 +44,7 @@ type MemoryFile = {
 
 const MAX_MEMORY_FILE_BYTES = 512 * 1024
 const MAX_MEMORY_FILES = 500
-const PROJECT_LABEL_SESSION_SCAN_LIMIT = 10
-const PROJECT_LABEL_HEAD_BYTES = 64 * 1024
-const PROJECT_LABEL_FS_SEARCH_DEPTH = 24
-const PROJECT_LABEL_FS_SEARCH_NODE_LIMIT = 2000
+const GLOBAL_PROJECT_ID = 'global'
 
 export async function handleMemoryApi(
   req: Request,
@@ -58,13 +58,13 @@ export async function handleMemoryApi(
       case 'projects':
         if (req.method !== 'GET') throw methodNotAllowed(req.method)
         return Response.json({
-          projects: await listMemoryProjects(url.searchParams.get('cwd') || undefined),
+          projects: await listMemoryProjects(),
         })
 
       case 'files':
         if (req.method !== 'GET') throw methodNotAllowed(req.method)
         return Response.json({
-          files: await listMemoryFiles(requireProjectId(url)),
+          files: await listMemoryFiles(),
         })
 
       case 'file':
@@ -78,69 +78,32 @@ export async function handleMemoryApi(
   }
 }
 
-async function listMemoryProjects(cwd?: string): Promise<MemoryProject[]> {
-  const projectsDir = getProjectsDir()
-  const currentCwd = cwd || getCwd()
-  const currentProjectId = getProjectIdForCwd(currentCwd)
-  const projects = new Map<string, MemoryProject>()
-
-  addProject(projects, currentProjectId, true)
-
-  let entries: import('node:fs').Dirent[]
-  try {
-    entries = await fs.readdir(projectsDir, { withFileTypes: true })
-  } catch {
-    entries = []
-  }
-
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue
-    addProject(projects, entry.name, entry.name === currentProjectId)
-  }
-
-  const resolved = await Promise.all(
-    Array.from(projects.values()).map(async project => {
-      const [fileCount, label] = await Promise.all([
-        countMarkdownFiles(project.memoryDir),
-        resolveProjectLabel(project.id, currentCwd),
-      ])
-      return {
-        ...project,
-        label,
-        exists: fileCount > 0 || (await directoryExists(project.memoryDir)),
-        fileCount,
-      }
-    }),
-  )
-
-  return resolved
-    .filter((project) => project.exists)
-    .sort((a, b) => {
-      if (a.isCurrent !== b.isCurrent) return a.isCurrent ? -1 : 1
-      if (a.fileCount !== b.fileCount) return b.fileCount - a.fileCount
-      return a.label.localeCompare(b.label)
-    })
+/**
+ * Return a single global memory entry. The desktop client's project
+ * selector still consumes this shape, so it gets one "global" project
+ * pointing at getAutoMemPath(). Returns an empty array when the global
+ * memory directory does not exist yet (fresh install) so the UI can show
+ * its empty state instead of fabricating an entry.
+ */
+async function listMemoryProjects(): Promise<MemoryProject[]> {
+  const memoryDir = getAutoMemPath()
+  const fileCount = await countMarkdownFiles(memoryDir)
+  const exists = fileCount > 0 || (await directoryExists(memoryDir))
+  if (!exists) return []
+  return [
+    {
+      id: GLOBAL_PROJECT_ID,
+      label: memoryDir,
+      memoryDir,
+      exists: true,
+      fileCount,
+      isCurrent: true,
+    },
+  ]
 }
 
-function addProject(projects: Map<string, MemoryProject>, id: string, isCurrent: boolean) {
-  if (!isValidProjectId(id)) return
-  const existing = projects.get(id)
-  if (existing) {
-    existing.isCurrent = existing.isCurrent || isCurrent
-    return
-  }
-  projects.set(id, {
-    id,
-    label: unsanitizeProjectLabel(id),
-    memoryDir: path.join(getProjectsDir(), id, 'memory'),
-    exists: false,
-    fileCount: 0,
-    isCurrent,
-  })
-}
-
-async function listMemoryFiles(projectId: string): Promise<MemoryFile[]> {
-  const memoryDir = await ensureMemoryDirBoundary(projectId, { mustExist: false })
+async function listMemoryFiles(): Promise<MemoryFile[]> {
+  const memoryDir = getAutoMemPath()
   if (!(await directoryExists(memoryDir))) return []
 
   const files: MemoryFile[] = []
@@ -211,9 +174,8 @@ async function listMemoryFiles(projectId: string): Promise<MemoryFile[]> {
 
 async function handleMemoryFile(req: Request, url: URL): Promise<Response> {
   if (req.method === 'GET') {
-    const projectId = requireProjectId(url)
     const relativePath = requireMemoryPath(url.searchParams.get('path'))
-    const fullPath = await resolveMemoryFilePath(projectId, relativePath, {
+    const fullPath = await resolveMemoryFilePath(relativePath, {
       mustExist: true,
     })
     const stat = await fs.stat(fullPath)
@@ -232,7 +194,8 @@ async function handleMemoryFile(req: Request, url: URL): Promise<Response> {
 
   if (req.method === 'PUT') {
     const body = await parseJsonBody(req)
-    const projectId = typeof body.projectId === 'string' ? body.projectId : ''
+    // projectId is ignored — all memory maps to the global directory.
+    // Kept in the body schema for backward compatibility with the desktop client.
     const relativePath = requireMemoryPath(
       typeof body.path === 'string' ? body.path : undefined,
     )
@@ -244,10 +207,10 @@ async function handleMemoryFile(req: Request, url: URL): Promise<Response> {
       throw ApiError.badRequest('Memory file content exceeds 512 KB')
     }
 
-    const fullPath = await resolveMemoryFilePath(projectId, relativePath, {
+    const fullPath = await resolveMemoryFilePath(relativePath, {
       mustExist: false,
     })
-    const memoryDir = await ensureMemoryDirBoundary(projectId, { mustExist: false })
+    const memoryDir = getAutoMemPath()
     await fs.mkdir(path.dirname(fullPath), { recursive: true, mode: 0o700 })
     await assertWithinDirectory(path.dirname(fullPath), memoryDir, true)
     if (await fileExists(fullPath)) {
@@ -268,12 +231,6 @@ async function handleMemoryFile(req: Request, url: URL): Promise<Response> {
   throw methodNotAllowed(req.method)
 }
 
-function requireProjectId(url: URL): string {
-  const projectId = url.searchParams.get('projectId')
-  if (!projectId) throw ApiError.badRequest('Missing projectId')
-  return projectId
-}
-
 function requireMemoryPath(value: string | null | undefined): string {
   if (!value || typeof value !== 'string') {
     throw ApiError.badRequest('Missing memory file path')
@@ -291,39 +248,16 @@ function requireMemoryPath(value: string | null | undefined): string {
 }
 
 async function resolveMemoryFilePath(
-  projectId: string,
   relativePath: string,
   opts: { mustExist: boolean },
 ): Promise<string> {
-  const memoryDir = await ensureMemoryDirBoundary(projectId, {
-    mustExist: opts.mustExist,
-  })
+  const memoryDir = getAutoMemPath()
+  if (opts.mustExist && !(await directoryExists(memoryDir))) {
+    throw ApiError.notFound('Memory directory not found')
+  }
   const candidate = path.resolve(memoryDir, relativePath)
   await assertWithinDirectory(candidate, memoryDir, opts.mustExist)
   return candidate
-}
-
-async function ensureMemoryDirBoundary(
-  projectId: string,
-  opts: { mustExist: boolean },
-): Promise<string> {
-  if (!isValidProjectId(projectId)) {
-    throw ApiError.badRequest('Invalid projectId')
-  }
-  const projectsDir = path.resolve(getProjectsDir())
-  const projectDir = path.resolve(projectsDir, projectId)
-  await assertWithinDirectory(projectDir, projectsDir, false)
-  const memoryDir = path.resolve(projectDir, 'memory')
-  if (await directoryExists(projectDir)) {
-    await assertWithinDirectory(projectDir, projectsDir, true)
-  }
-  if (await directoryExists(memoryDir)) {
-    await assertWithinDirectory(memoryDir, projectDir, true)
-  }
-  if (opts.mustExist && !(await directoryExists(memoryDir))) {
-    throw ApiError.notFound(`Memory project not found: ${projectId}`)
-  }
-  return memoryDir
 }
 
 async function assertWithinDirectory(
@@ -351,149 +285,6 @@ async function safeRealpath(targetPath: string): Promise<string> {
   } catch {
     return path.resolve(targetPath)
   }
-}
-
-function isValidProjectId(projectId: string): boolean {
-  return (
-    projectId.length > 0 &&
-    !projectId.includes('\0') &&
-    !projectId.includes('/') &&
-    !projectId.includes('\\') &&
-    projectId !== '.' &&
-    projectId !== '..'
-  )
-}
-
-function getProjectsDir(): string {
-  return path.join(getClaudeConfigHomeDir(), 'projects')
-}
-
-function getProjectIdForCwd(cwd: string): string {
-  return sanitizePath(findCanonicalGitRoot(cwd) ?? cwd)
-}
-
-async function resolveProjectLabel(projectId: string, currentCwd: string): Promise<string> {
-  const currentRoot = findCanonicalGitRoot(currentCwd) ?? currentCwd
-  if (sanitizePath(currentRoot) === projectId) return currentRoot
-
-  const sessionPath = await inferProjectPathFromSessionFiles(projectId)
-  if (sessionPath) return sessionPath
-
-  const filesystemPath = await inferProjectPathFromExistingDirectory(projectId)
-  return filesystemPath ?? unsanitizeProjectLabel(projectId)
-}
-
-async function inferProjectPathFromSessionFiles(projectId: string): Promise<string | undefined> {
-  const projectDir = path.join(getProjectsDir(), projectId)
-  let entries: import('node:fs').Dirent[]
-  try {
-    entries = await fs.readdir(projectDir, { withFileTypes: true })
-  } catch {
-    return undefined
-  }
-
-  const sessionFiles: Array<{ filePath: string; mtimeMs: number }> = []
-  for (const entry of entries) {
-    if (!entry.isFile() || !entry.name.endsWith('.jsonl')) continue
-    const filePath = path.join(projectDir, entry.name)
-    try {
-      const stat = await fs.stat(filePath)
-      sessionFiles.push({ filePath, mtimeMs: stat.mtimeMs })
-    } catch {
-      // A racing delete should not hide the rest of the memory projects.
-    }
-  }
-
-  sessionFiles.sort((a, b) => b.mtimeMs - a.mtimeMs)
-  for (const { filePath } of sessionFiles.slice(0, PROJECT_LABEL_SESSION_SCAN_LIMIT)) {
-    const head = await readFileHead(filePath, PROJECT_LABEL_HEAD_BYTES)
-    const candidate =
-      extractJsonStringField(head, 'cwd') ??
-      extractJsonStringField(head, 'workDir') ??
-      extractJsonStringField(head, 'projectPath')
-    if (candidate && path.isAbsolute(candidate)) return candidate.normalize('NFC')
-  }
-
-  return undefined
-}
-
-async function readFileHead(filePath: string, bytes: number): Promise<string> {
-  const handle = await fs.open(filePath, 'r')
-  try {
-    const buffer = Buffer.alloc(bytes)
-    const { bytesRead } = await handle.read(buffer, 0, bytes, 0)
-    return buffer.subarray(0, bytesRead).toString('utf-8')
-  } catch {
-    return ''
-  } finally {
-    await handle.close()
-  }
-}
-
-async function inferProjectPathFromExistingDirectory(projectId: string): Promise<string | undefined> {
-  const roots = Array.from(new Set([
-    homedir(),
-    process.env.HOME,
-    process.env.USERPROFILE,
-    '/private/tmp',
-    '/tmp',
-  ].filter((root): root is string => Boolean(root && path.isAbsolute(root)))))
-
-  for (const root of roots) {
-    const resolvedRoot = path.resolve(root)
-    if (!sanitizedPrefixCanMatch(projectId, sanitizePath(resolvedRoot))) continue
-    const state = { visited: 0 }
-    const match = await findDirectoryBySanitizedPath(projectId, resolvedRoot, 0, state)
-    if (match) return match.normalize('NFC')
-  }
-
-  return undefined
-}
-
-async function findDirectoryBySanitizedPath(
-  projectId: string,
-  candidate: string,
-  depth: number,
-  state: { visited: number },
-): Promise<string | undefined> {
-  if (state.visited >= PROJECT_LABEL_FS_SEARCH_NODE_LIMIT) return undefined
-  state.visited += 1
-
-  const candidateId = sanitizePath(candidate)
-  if (candidateId === projectId) return candidate
-  if (depth >= PROJECT_LABEL_FS_SEARCH_DEPTH || !sanitizedPrefixCanMatch(projectId, candidateId)) {
-    return undefined
-  }
-
-  let entries: import('node:fs').Dirent[]
-  try {
-    entries = await fs.readdir(candidate, { withFileTypes: true })
-  } catch {
-    return undefined
-  }
-
-  entries.sort((a, b) => a.name.localeCompare(b.name))
-  for (const entry of entries) {
-    if (!entry.isDirectory() && !entry.isSymbolicLink()) continue
-    const child = path.join(candidate, entry.name)
-    if (!sanitizedPrefixCanMatch(projectId, sanitizePath(child))) continue
-    if (entry.isSymbolicLink() && !(await directoryExists(child))) continue
-    const match = await findDirectoryBySanitizedPath(projectId, child, depth + 1, state)
-    if (match) return match
-  }
-
-  return undefined
-}
-
-function sanitizedPrefixCanMatch(projectId: string, prefix: string): boolean {
-  if (projectId === prefix) return true
-  return prefix.endsWith('-')
-    ? projectId.startsWith(prefix)
-    : projectId.startsWith(`${prefix}-`)
-}
-
-function unsanitizeProjectLabel(projectId: string): string {
-  return projectId.replace(/^-/, '/').replace(/-/g, '/')
 }
 
 async function directoryExists(dir: string): Promise<boolean> {

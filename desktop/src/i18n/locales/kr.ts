@@ -752,8 +752,8 @@ export const kr: Record<TranslationKey, string> = {
 
   // Settings > Memory
   'settings.tab.memory': '메모리',
-  'settings.memory.title': '프로젝트 메모리',
-  'settings.memory.description': 'Claude가 각 프로젝트용으로 작성하는 Markdown 메모리 파일을 확인하고 편집합니다. 이 파일들은 ~/.claude/projects/<project>/memory/ 아래에 저장되며 CLI 런타임에 의해 로드됩니다.',
+  'settings.memory.title': '전역 메모리',
+  'settings.memory.description': 'Claude가 작성하는 Markdown 메모리 파일을 확인하고 편집합니다. 이 파일들은 ~/.claude/memory/ 아래에 전역으로 저장되며 CLI 런타임에 의해 모든 프로젝트에서 로드됩니다.',
   'settings.memory.refresh': '새로 고침',
   'settings.memory.projects': '프로젝트',
   'settings.memory.files': '메모리 파일',
@@ -1915,7 +1915,7 @@ export const kr: Record<TranslationKey, string> = {
   'slashCmd.cost.description': '세션 사용량과 비용 표시',
   'slashCmd.context.description': '현재 컨텍스트 사용량 표시',
   'slashCmd.plugin.description': '설정에서 데스크톱 플러그인 제어 열기',
-  'slashCmd.memory.description': '설정에서 프로젝트 메모리 파일 열기',
+  'slashCmd.memory.description': '설정에서 메모리 파일 열기',
   'slashCmd.doctor.description': '진단에서 Doctor 열기',
   'slashCmd.compact.description': '대화 컨텍스트 압축',
   'slashCmd.clear.description': '대화 기록 지우기',

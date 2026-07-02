@@ -261,6 +261,15 @@ export const getAutoMemPath = memoize(
 )
 
 /**
+ * Reset the getAutoMemPath memoization cache. Test-only — tests that change
+ * CLAUDE_COWORK_MEMORY_PATH_OVERRIDE or CLAUDE_CONFIG_DIR mid-suite need to
+ * clear the memoized path so the next call re-reads the env/config.
+ */
+export function resetAutoMemPathCache(): void {
+  getAutoMemPath.cache.clear()
+}
+
+/**
  * Returns the daily log file path for the given date (defaults to today).
  * Shape: <autoMemPath>/logs/YYYY/MM/YYYY-MM-DD.md
  *

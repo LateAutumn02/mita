@@ -64,7 +64,7 @@ export const FALLBACK_SLASH_COMMANDS: SlashCommandOption[] = [
   { name: 'cost', description: 'Show session usage and costs' },
   { name: 'context', description: 'Show current context usage' },
   { name: 'plugin', description: 'Open desktop plugin controls in Settings' },
-  { name: 'memory', description: 'Open project memory files in Settings' },
+  { name: 'memory', description: 'Open memory files in Settings' },
   { name: 'doctor', description: 'Open Doctor in Diagnostics' },
   { name: 'compact', description: 'Compact conversation context' },
   { name: 'clear', description: 'Clear conversation history' },
