@@ -171,7 +171,7 @@ export const useUpdateStore = create<UpdateStore>((set, get) => ({
     if (!getUpdateHost()) return
     if (!startupCheckPromise) {
       startupCheckPromise = (async () => {
-        await new Promise((resolve) => setTimeout(resolve, 5000))
+        await new Promise((resolve) => setTimeout(resolve, 1500))
         await get().checkForUpdates({ silent: true })
       })().finally(() => {
         startupCheckPromise = null
