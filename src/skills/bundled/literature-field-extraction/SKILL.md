@@ -44,7 +44,8 @@ description: 审核并规范用户提供的文献字段说明书，再从一批 
 
 4. 委托提取。
    - 启动子 agent 前，先创建一个共享 JSON 输出目录，例如 `<输出目录>\literature-json\`。
-   - 每个子 agent 收到最多 3 个 PDF、规范化后的提取契约、目标 `columns` 列表，以及必要的已有行去重信息。
+   - 每个子 agent 收到最多 3 个 PDF、规范化后的提取契约、目标 `columns` 列表、共享 JSON 输出目录、要写入的 shard 文件名，以及必要的已有行去重信息。
+   - 每个子 agent 的提示词**第一条**必须是：用 `Read` 完整读取 `<skill_base_dir>/references/shard-worker.md` 并严格遵循。该文件是子 agent 的唯一工作流权威，集中了防幻觉红线（逐 PDF 串行处理、表格语言跟随原文、作者/通讯作者/PI 逐字准确、禁止杜撰）、PDF 读取规则、字段填写规则、JSON 格式和最终回复格式。主 agent 把 `<skill_base_dir>` 替换为 skill base 目录绝对路径（主 agent skill prompt 开头会给出 `Base directory for this skill: ...`）。不要在提示词里复述整套规则，指向文件即可，避免转述漏项。
    - 每个子 agent 使用 `PDFExtract` 按有限页码范围读取 PDF。禁止为了“看完整篇”而连续读取所有页面。
    - 每个 PDF 必须先做文本层预检：优先读取前 1-3 页，并限制 `max_pages` 和 `max_chars`。如果连续两次读取结果为空、极短或明显是图片页，立即判定为扫描件/纯图片 PDF，写入 issue，停止继续读取该 PDF。
    - 对大型 PDF，只围绕字段要求读取必要页面；默认每个 PDF 不超过 3 次 `PDFExtract` 调用。只有已经看到目录、章节标题或明确证据位置时，才允许继续使用 `nextPage` 读取后续小范围页面。
@@ -78,6 +79,7 @@ description: 审核并规范用户提供的文献字段说明书，再从一批 
 
 - `references/schema-review.md`：如何把松散的字段说明书改写成清晰的提取契约。
 - `references/workflow.md`：有限子 agent 分片、共享 JSON 输出、增量更新、去重策略和最终报告规则。
+- `references/shard-worker.md`：提取子 agent 的唯一工作流权威。主 agent 派子 agent 时，提示词第一条要求子 agent 用 `Read` 读取该文件。含防幻觉红线（逐 PDF 串行处理、表格语言跟随原文、作者/通讯作者/PI 逐字准确、禁止杜撰）、PDF 读取规则、字段填写规则、JSON 格式和最终回复格式。
 
 ## 子 Agent 策略
 
@@ -100,16 +102,18 @@ description: 审核并规范用户提供的文献字段说明书，再从一批 
 
 主 agent 不要无限等待子 agent。超过 6 分钟没有 JSON 文件时，检查输出；如果确认卡在大 PDF 或扫描件上，停止该子 agent，重试一次严格预检任务。重试仍失败则记录 issue，并继续合并其他 shard。
 
-子 agent 的提取结果必须写入磁盘，不能只在最终回复里贴出来。每个子 agent 提示词里都要明确要求：
+子 agent 的提取结果必须写入磁盘，不能只在最终回复里贴出来。完整工作流权威见 `references/shard-worker.md`——主 agent 派子 agent 时，提示词第一条就是要求子 agent 用 `Read` 读取该文件。下面只列要点提醒，权威以文件为准：
 
-- 使用 `PDFExtract` 读取分配的 PDF。
-- 每个 PDF 先做文本层预检：只读前 1-3 页，限制 `max_pages` 和 `max_chars`。若连续两次为空、极短或疑似图片页，立即判定扫描件，写 issue，停止该 PDF。
-- 禁止连续读取完整 PDF。默认每个 PDF 最多调用 3 次 `PDFExtract`；只有字段契约明确需要且已经定位到相关页面时，才继续读取小范围页面。
-- 必要时使用 `WebSearch`/`WebFetch` 验证 DOI、出版信息、影响因子、指南来源或其他 PDF 中无法可靠确认的字段。
+- 一个 PDF 一个 PDF 地串行处理，读完一个就写一个，禁止一口气全读再全写（防跨文献串扰幻觉）。
+- 表格字段语言跟随原文语言，中文文献填中文，英文文献填英文，不要自行翻译。
+- 作者姓名、通讯作者、PI 逐字按原文标注；原文未明确标注的通讯作者/PI 留空并记 issue，不要猜、不要张冠李戴。
+- 严禁杜撰原文献没有的内容；找不到证据就留空并记 issue，不要用相似文献或常识推断。
+- 使用 `PDFExtract` 读取，每个 PDF 先做文本层预检（前 1-3 页，限制 `max_pages`/`max_chars`），连续两次为空/极短/疑似图片页即判定扫描件，写 issue 停止该 PDF。默认每个 PDF 最多 3 次 `PDFExtract`。
+- 必要时用 `WebSearch`/`WebFetch` 核验 DOI、出版信息、影响因子、指南来源等当前文献本身的可公开信息；不要用相似文献内容填充。
 - 当样例或已有 Excel 中影响因子、期刊分区等期刊指标列为空时，不要主动补这些字段。只有字段契约明确要求，且可靠来源能验证数值和指标年份时，才填写。
 - 网页来源字段必须可靠且记录证据；不确定的值留空。
-- 使用 `Write` 创建分配的 shard JSON 文件。
-- 最终回复只返回简短完成说明：JSON 文件路径、记录数、issue 数和阻塞问题。
+- 使用 `Write` 创建分配的 shard JSON 文件；只写 JSON，不编辑 Excel。
+- 最终回复只返回：JSON 文件路径、记录数、issue 数（含 error 级摘要）、阻塞问题。
 - 不要在最终回复中粘贴完整 JSON。
 
 推荐 JSON 结构：

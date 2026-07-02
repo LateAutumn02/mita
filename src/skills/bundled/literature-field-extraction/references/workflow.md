@@ -36,8 +36,9 @@
 
 ## 子 Agent 规则
 
+- 每个提取子 agent 的提示词**第一条**必须是：用 `Read` 工具完整读取 `<skill_base_dir>/references/shard-worker.md` 并严格遵循。该文件是子 agent 的唯一工作流权威，集中了防幻觉红线、逐 PDF 串行处理流程、PDF 读取规则、字段填写规则、JSON 格式和最终回复格式。主 agent 负责把 `<skill_base_dir>` 替换为 skill base 目录的绝对路径（主 agent 的 skill prompt 开头会给出 `Base directory for this skill: ...`）。不要在子 agent 提示词里复述整套规则——指向文件即可，避免转述漏项。
 - 所有提取子 agent 都使用 `subagent_type: "general-purpose"`。
-- 每个子 agent 的提示词里都必须包含规范化后的提取规则和目标 `columns` 数组。
+- 每个子 agent 的提示词里还必须包含：PDF 列表、规范化后的提取契约、目标 `columns` 数组、共享 JSON 输出目录、要写入的 shard 文件名。
 - 每个子 agent 只能处理提示词中指定的 PDF 列表，最多 3 个 PDF。
 - 告诉子 agent 使用 `PDFExtract`，并设置有限的 `start_page`、`max_pages`、`max_chars`，不要使用 shell PDF 工具。
 - 告诉子 agent 每个 PDF 必须先做文本层预检：先读前 1-3 页，并限制 `max_pages` 和 `max_chars`。如果连续两次读取结果为空、极短或明显是图片页，立即判定为扫描件/纯图片 PDF，写入 issue，停止继续读取该 PDF。
@@ -78,37 +79,31 @@
 ## 子 Agent 提示词模板
 
 ```text
-Extract structured records from the assigned PDF shard using the extraction contract below.
+你是文献字段提取子 agent。启动后第一件事：用 Read 工具完整读取这个文件并严格遵循：
+<skill_base_dir>/references/shard-worker.md
 
-Use subagent_type: general-purpose.
+它是你的唯一工作流权威，包含防幻觉红线、逐 PDF 处理流程、PDF 读取规则、字段填写规则、JSON 格式和最终回复格式。如果本提示词与它冲突，以它为准，并在最终回复里说明冲突点。
 
-Write one JSON object with keys records and issues to this exact file:
+之后按它的流程处理以下 PDF 分片，把一个含 records 和 issues 的 JSON 对象写入这个精确路径：
 <json_output_dir>/shard-NN.json
 
-Rules:
-- Process only the PDFs listed in this prompt. Do not process any other PDF.
-- This shard contains at most 3 PDFs.
-- Use the column names exactly as provided.
-- Read each PDF with PDFExtract using strict bounded calls. First run a text-layer preflight on pages 1-3 with limited max_pages and max_chars.
-- If two bounded reads return empty, near-empty, or image-only text, mark the PDF as scanned/image-only, add an issue, leave unverifiable fields blank, and stop processing that PDF.
-- Do not read the full PDF page by page. By default, call PDFExtract at most 3 times per PDF. Continue with nextPage only after locating a relevant table of contents, section title, or evidence page.
-- You may use WebSearch and WebFetch to verify or supplement requested fields such as DOI, journal metadata, publisher page, guideline source, and impact factor.
-- Do not proactively fill impact factor, journal quartile, or other journal metrics when the official sample or existing Excel leaves those columns blank.
-- Only fill journal metrics when the extraction contract explicitly requires them and the value plus metric year are verified from a reliable source.
-- Only fill web-derived values when they are verified from reliable sources. Record source notes in evidence or issues.
-- Do not fill DOI, impact factor, society/organization, recommendation text, sample sizes, numeric results, page numbers, or citation details unless verified.
-- You must write the JSON result to the exact file with Write.
-- Your final response must not paste the full JSON. Return only: written file path, record count, issue count, and any blocking errors.
-- Do not create or edit Excel.
-- Do not invent missing values.
-- Leave unverifiable fields blank.
-- Include PDF filename, page/evidence notes, and web source notes when possible.
+关键提醒（完整规则见 shard-worker.md，这里只列最高优先级）：
+- 一个 PDF 一个 PDF 地串行处理：读完一个 PDF 就把它的记录写入 JSON，再读下一个。禁止一口气把 3 个 PDF 全读完再统一输出。
+- 表格字段语言跟随原文语言：中文文献填中文，英文文献填英文，不要自行翻译。
+- 作者姓名、通讯作者、PI 必须逐字按原文标注；原文没有明确标注的通讯作者/PI 一律留空并记 issue，不要猜、不要张冠李戴。
+- 严禁杜撰原文献没有的内容；找不到证据的字段留空并记 issue，不要用"相似文献"或常识推断填充。
+- 只用 PDFExtract 读 PDF，默认每个 PDF 最多 3 次调用；扫描件/纯图片 PDF 立即停并记 issue。
+- 只写 JSON，不要创建或编辑 Excel/CSV。
+- 最终回复只返回：JSON 文件路径、记录数、issue 数（含 error 级 issue 摘要）、阻塞错误。
 
-PDF shard:
+PDF 分片：
 - <paths>
 
-Extraction contract:
+提取契约：
 <normalized field specification>
+
+目标 columns:
+<columns>
 ```
 
 Task 工具提醒：如果用 task 工具包装这段提示词，必须确认已经调用过对应的 `ToolSearch select:<TaskToolName>`。任务标签使用 `subject`，任务 ID 使用 `taskId`。
