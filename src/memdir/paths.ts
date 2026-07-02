@@ -77,6 +77,32 @@ export function isExtractModeActive(): boolean {
 }
 
 /**
+ * Whether relevance-based memory recall is enabled.
+ *
+ * When enabled, the full MEMORY.md index is NOT injected into the system
+ * prompt. Instead, startRelevantMemoryPrefetch runs on each user query and
+ * surfaces up to 5 memory files (selected by a Sonnet-based selector over
+ * each file's frontmatter name/description/type) as relevant_memories
+ * attachments. The extraction agent also stops teaching MEMORY.md index
+ * maintenance.
+ *
+ * Default: enabled. Previously gated on the `tengu_moth_copse` GrowthBook
+ * flag (default off); flipped to always-on so identity/feedback/user
+ * memories are surfaced on-demand across all sessions without requiring
+ * remote flag configuration.
+ *
+ * Flip to false to restore legacy behavior (full MEMORY.md index in the
+ * system prompt, no query-time prefetch).
+ *
+ * Call sites: startRelevantMemoryPrefetch (attachments.ts), loadMemoryPrompt
+ * skipIndex (memdir.ts), filterInjectedMemoryFiles (claudemd.ts),
+ * extractMemories skipIndex.
+ */
+export function isRelevanceRecallEnabled(): boolean {
+  return true
+}
+
+/**
  * Returns the base directory for persistent memory storage.
  * Resolution order:
  *   1. CLAUDE_CODE_REMOTE_MEMORY_DIR env var (explicit override, set in CCR)

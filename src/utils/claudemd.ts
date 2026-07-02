@@ -46,7 +46,11 @@ import {
   getOriginalCwd,
 } from '../bootstrap/state.js'
 import { truncateEntrypointContent } from '../memdir/memdir.js'
-import { getAutoMemEntrypoint, isAutoMemoryEnabled } from '../memdir/paths.js'
+import {
+  getAutoMemEntrypoint,
+  isAutoMemoryEnabled,
+  isRelevanceRecallEnabled,
+} from '../memdir/paths.js'
 import { getFeatureValue_CACHED_MAY_BE_STALE } from '../services/analytics/growthbook.js'
 import {
   getCurrentProjectConfig,
@@ -1134,18 +1138,16 @@ export function getLargeMemoryFiles(files: MemoryFileInfo[]): MemoryFileInfo[] {
 }
 
 /**
- * When tengu_moth_copse is on, the findRelevantMemories prefetch surfaces
- * memory files via attachments, so the MEMORY.md index is no longer injected
- * into the system prompt. Callsites that care about "what's actually in
- * context" (context builder, /context viz) should filter through this.
+ * When relevance recall is enabled (isRelevanceRecallEnabled, default on),
+ * the findRelevantMemories prefetch surfaces memory files via attachments,
+ * so the MEMORY.md index is no longer injected into the system prompt.
+ * Callsites that care about "what's actually in context" (context builder,
+ * /context viz) should filter through this.
  */
 export function filterInjectedMemoryFiles(
   files: MemoryFileInfo[],
 ): MemoryFileInfo[] {
-  const skipMemoryIndex = getFeatureValue_CACHED_MAY_BE_STALE(
-    'tengu_moth_copse',
-    false,
-  )
+  const skipMemoryIndex = isRelevanceRecallEnabled()
   if (!skipMemoryIndex) return files
   return files.filter(f => f.type !== 'AutoMem' && f.type !== 'TeamMem')
 }

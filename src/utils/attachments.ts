@@ -231,7 +231,11 @@ import { PDF_AT_MENTION_INLINE_THRESHOLD } from '../constants/apiLimits.js'
 import { isAgentSwarmsEnabled } from './agentSwarmsEnabled.js'
 import { findRelevantMemories } from '../memdir/findRelevantMemories.js'
 import { memoryAge, memoryFreshnessText } from '../memdir/memoryAge.js'
-import { getAutoMemPath, isAutoMemoryEnabled } from '../memdir/paths.js'
+import {
+  getAutoMemPath,
+  isAutoMemoryEnabled,
+  isRelevanceRecallEnabled,
+} from '../memdir/paths.js'
 import { getAgentMemoryDir } from '../tools/AgentTool/agentMemory.js'
 import {
   readUnreadMessages,
@@ -2358,10 +2362,7 @@ export function startRelevantMemoryPrefetch(
   messages: ReadonlyArray<Message>,
   toolUseContext: ToolUseContext,
 ): MemoryPrefetch | undefined {
-  if (
-    !isAutoMemoryEnabled() ||
-    !getFeatureValue_CACHED_MAY_BE_STALE('tengu_moth_copse', false)
-  ) {
+  if (!isAutoMemoryEnabled() || !isRelevanceRecallEnabled()) {
     return undefined
   }
 

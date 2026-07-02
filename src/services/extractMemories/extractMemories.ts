@@ -26,6 +26,7 @@ import {
   getAutoMemPath,
   isAutoMemoryEnabled,
   isAutoMemPath,
+  isRelevanceRecallEnabled,
 } from '../../memdir/paths.js'
 import type { Tool } from '../../Tool.js'
 import { BASH_TOOL_NAME } from '../../tools/BashTool/toolName.js'
@@ -363,10 +364,7 @@ export function initExtractMemories(): void {
       ? teamMemPaths!.isTeamMemoryEnabled()
       : false
 
-    const skipIndex = getFeatureValue_CACHED_MAY_BE_STALE(
-      'tengu_moth_copse',
-      false,
-    )
+    const skipIndex = isRelevanceRecallEnabled()
 
     const canUseTool = createAutoMemCanUseTool(memoryDir)
     const cacheSafeParams = createCacheSafeParams(context)
