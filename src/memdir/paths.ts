@@ -62,14 +62,18 @@ export function isAutoMemoryEnabled(): boolean {
  * skips that range (hasMemoryWritesSince in extractMemories.ts); when it
  * doesn't, the background agent catches anything missed.
  *
+ * Previously gated on the `tengu_passport_quail` GrowthBook flag (default
+ * off), which silently disabled background memory extraction for all
+ * local users. Flipped to always-on so identity/feedback/user memories
+ * are captured from conversations without requiring remote flag
+ * configuration. Non-interactive sessions still require the
+ * `tengu_slate_thimble` flag.
+ *
  * Callers must also gate on feature('EXTRACT_MEMORIES') — that check cannot
  * live inside this helper because feature() only tree-shakes when used
  * directly in an `if` condition.
  */
 export function isExtractModeActive(): boolean {
-  if (!getFeatureValue_CACHED_MAY_BE_STALE('tengu_passport_quail', false)) {
-    return false
-  }
   return (
     !getIsNonInteractiveSession() ||
     getFeatureValue_CACHED_MAY_BE_STALE('tengu_slate_thimble', false)
