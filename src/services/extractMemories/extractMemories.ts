@@ -366,14 +366,17 @@ export function initExtractMemories(): void {
     const canUseTool = createAutoMemCanUseTool(memoryDir)
     const cacheSafeParams = createCacheSafeParams(context)
 
-    // Only run extraction every N eligible turns (tengu_bramble_lintel, default 1).
+    // Only run extraction every N eligible turns. Default 3: running every
+    // turn is token-heavy for little gain (the cursor mechanism ensures
+    // skipped turns' messages are picked up on the next extraction). The
+    // tengu_bramble_lintel GrowthBook flag can still override this remotely.
     // Trailing extractions (from stashed contexts) skip this check since they
     // process already-committed work that should not be throttled.
     if (!isTrailingRun) {
       turnsSinceLastExtraction++
       if (
         turnsSinceLastExtraction <
-        (getFeatureValue_CACHED_MAY_BE_STALE('tengu_bramble_lintel', null) ?? 1)
+        (getFeatureValue_CACHED_MAY_BE_STALE('tengu_bramble_lintel', null) ?? 3)
       ) {
         return
       }
