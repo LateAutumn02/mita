@@ -1,0 +1,4 @@
+node_modules/
+mita-mcp-server
+mita-mcp-server.exe
+*.log
