@@ -1,7 +1,7 @@
 {
   "name": "claude-code-desktop",
   "private": true,
-  "version": "0.4.9",
+  "version": "0.2.1",
   "description": "Desktop coding agent workbench for Claude Code Haha.",
   "homepage": "https://github.com/NanmiCoder/cc-haha",
   "author": {
@@ -19,6 +19,9 @@
       "node_modules/node-pty/**",
       "src-tauri/binaries/**"
     ],
+    "toolsets": {
+      "winCodeSign": "1.1.0"
+    },
     "artifactName": "Claude-Code-Haha-${version}-${os}-${arch}.${ext}",
     "npmRebuild": false,
     "directories": {
@@ -32,6 +35,13 @@
       "src-tauri/icons/**",
       "src-tauri/resources/preview-agent.js",
       "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../mita-dist/skills",
+        "to": "mita/skills",
+        "filter": ["**/*"]
+      }
     ],
     "mac": {
       "category": "public.app-category.developer-tools",
@@ -48,11 +58,25 @@
         "/Contents/Frameworks/.+\\.(?:pak|bin|dat|nib)$",
         "/Contents/Resources/.+\\.(?:asar|pak|bin|dat|icns|png|jpg|jpeg|gif|svg|ttf|woff|woff2)$"
       ],
-      "notarize": true
+      "notarize": true,
+      "extraResources": [
+        {
+          "from": "../mita-dist/bin/mita-mcp-server",
+          "to": "mita/bin/mita-mcp-server",
+          "filter": ["**/*"]
+        }
+      ]
     },
     "win": {
       "target": "nsis",
-      "icon": "src-tauri/icons/icon.ico"
+      "icon": "src-tauri/icons/icon.ico",
+      "extraResources": [
+        {
+          "from": "../mita-dist/bin/mita-mcp-server.exe",
+          "to": "mita/bin/mita-mcp-server.exe",
+          "filter": ["**/*"]
+        }
+      ]
     },
     "nsis": {
       "oneClick": false,
@@ -66,7 +90,14 @@
       ],
       "icon": "src-tauri/icons",
       "category": "Development",
-      "maintainer": "NanmiCoder <relakkes@gmail.com>"
+      "maintainer": "NanmiCoder <relakkes@gmail.com>",
+      "extraResources": [
+        {
+          "from": "../mita-dist/bin/mita-mcp-server",
+          "to": "mita/bin/mita-mcp-server",
+          "filter": ["**/*"]
+        }
+      ]
     },
     "publish": [
       {

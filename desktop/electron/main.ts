@@ -32,6 +32,7 @@ import {
 } from './services/appMode'
 import { installMacOsChromiumKeychainPromptGuard } from './services/keychain'
 import { applyWindowsAppUserModelId } from './services/appIdentity'
+import { seedMitaAssetsIfFirstRun } from './services/mitaSeed'
 import { installMainWindowNavigationGuards, installPreviewNavigationGuards } from './services/navigationGuards'
 import { installPreviewCleanupOnRendererNavigation } from './services/previewLifecycle'
 import { logNotificationSmokeRendererAck, scheduleNotificationSmoke } from './services/notificationSmoke'
@@ -427,6 +428,9 @@ registerIpcHandlers()
 app.whenReady().then(async () => {
   applyWindowsAppUserModelId(app)
   applyStartupPortableMode(app)
+  await seedMitaAssetsIfFirstRun({ app }).catch(error => {
+    console.error('[desktop] mita asset seed failed', error)
+  })
   screen.on('display-metrics-changed', (_event, _display, changedMetrics) => {
     if (changedMetrics.includes('scaleFactor') || changedMetrics.includes('bounds')) {
       previewService?.refreshBounds()
